@@ -242,27 +242,35 @@ Resources:
       SubnetId: !Ref PrivateAppSubnet2
       RouteTableId: !Ref PrivateAppRouteTable2
 
-  # Create a Route Table for the private database subnets
-  PrivateDBRouteTable:
+  # Create Route Tables for the private database subnets
+  PrivateDBRouteTable1:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: !Sub '${NamingPrefix}-PrivateDBRouteTable'
+          Value: !Sub '${NamingPrefix}-PrivateDBRouteTable1'
+
+  PrivateDBRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-PrivateDBRouteTable2'
 
   # Add routes to the NAT Gateways in the private database Route Tables
   PrivateDBRoute1:
     Type: AWS::EC2::Route
     Properties:
-      RouteTableId: !Ref PrivateDBRouteTable
+      RouteTableId: !Ref PrivateDBRouteTable1
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId: !Ref NatGateway1
 
   PrivateDBRoute2:
     Type: AWS::EC2::Route
     Properties:
-      RouteTableId: !Ref PrivateDBRouteTable
+      RouteTableId: !Ref PrivateDBRouteTable2
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId: !Ref NatGateway2
 
@@ -271,13 +279,13 @@ Resources:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PrivateDBSubnet1
-      RouteTableId: !Ref PrivateDBRouteTable
+      RouteTableId: !Ref PrivateDBRouteTable1
 
   PrivateDBSubnet2RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PrivateDBSubnet2
-      RouteTableId: !Ref PrivateDBRouteTable
+      RouteTableId: !Ref PrivateDBRouteTable2
 
   # Create Security Groups
   PublicLoadBalancerSG:
