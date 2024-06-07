@@ -1,6 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   CloudFormation template for a three-tier architecture with high availability across two availability zones.
+  Follows 6 pillars of well architected framework along with their best practices.
 
 Parameters:
   NamingPrefix:
@@ -10,37 +11,37 @@ Parameters:
 
   VPCIPv4CidrBlock:
     Type: String
-    Default: 172.20.0.0/24
+    Default: 15.0.0.0/16
     Description: CIDR block for the VPC
 
-  PublicSubnet1CIDR:
+  PublicAppSubnet1CIDR:
     Type: String
-    Default: 172.20.0.0/26
+    Default: 15.0.0.0/20
     Description: CIDR block for the public subnet 1
 
-  PublicSubnet2CIDR:
+  PublicAppSubnet2CIDR:
     Type: String
-    Default: 172.20.0.64/26
+    Default: 15.0.16.0/20
     Description: CIDR block for the public subnet 2
 
   PrivateAppSubnet1CIDR:
     Type: String
-    Default: 172.20.0.128/27
+    Default: 15.0.128.0/20
     Description: CIDR block for the private application subnet 1
 
   PrivateAppSubnet2CIDR:
     Type: String
-    Default: 172.20.0.160/27
+    Default: 15.0.144.0/20
     Description: CIDR block for the private application subnet 2
 
   PrivateDBSubnet1CIDR:
     Type: String
-    Default: 172.20.0.192/27
+    Default: 15.0.160.0/20
     Description: CIDR block for the private database subnet 1
 
   PrivateDBSubnet2CIDR:
     Type: String
-    Default: 172.20.0.224/27
+    Default: 15.0.176.0/20
     Description: CIDR block for the private database subnet 2
 
 Resources:
@@ -71,22 +72,22 @@ Resources:
       InternetGatewayId: !Ref InternetGateway
 
   # Create public subnets
-  PublicSubnet1:
+  PublicAppSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: !Ref PublicSubnet1CIDR
+      CidrBlock: !Ref PublicAppSubnet1CIDR
       AvailabilityZone: us-east-1a
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
           Value: !Sub '${NamingPrefix}-PublicSubnet1'
 
-  PublicSubnet2:
+  PublicAppSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: !Ref PublicSubnet2CIDR
+      CidrBlock: !Ref PublicAppSubnet2CIDR
       AvailabilityZone: us-east-1b
       MapPublicIpOnLaunch: true
       Tags:
@@ -157,13 +158,13 @@ Resources:
   PublicSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      SubnetId: !Ref PublicSubnet1
+      SubnetId: !Ref PublicAppSubnet1
       RouteTableId: !Ref PublicRouteTable
 
   PublicSubnet2RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      SubnetId: !Ref PublicSubnet2
+      SubnetId: !Ref PublicAppSubnet2
       RouteTableId: !Ref PublicRouteTable
 
   # Create Elastic IPs for the NAT Gateways
@@ -182,7 +183,7 @@ Resources:
     Type: AWS::EC2::NatGateway
     Properties:
       AllocationId: !GetAtt EIP1.AllocationId
-      SubnetId: !Ref PublicSubnet1
+      SubnetId: !Ref PublicAppSubnet1
       Tags:
         - Key: Name
           Value: !Sub '${NamingPrefix}-NatGateway1'
@@ -191,7 +192,7 @@ Resources:
     Type: AWS::EC2::NatGateway
     Properties:
       AllocationId: !GetAtt EIP2.AllocationId
-      SubnetId: !Ref PublicSubnet2
+      SubnetId: !Ref PublicAppSubnet2
       Tags:
         - Key: Name
           Value: !Sub '${NamingPrefix}-NatGateway2'
@@ -343,13 +344,13 @@ Outputs:
 
   PublicSubnet1Id:
     Description: Public Subnet 1 ID
-    Value: !Ref PublicSubnet1
+    Value: !Ref PublicAppSubnet1
     Export:
       Name: !Sub '${AWS::StackName}-PublicSubnet1Id'
 
   PublicSubnet2Id:
     Description: Public Subnet 2 ID
-    Value: !Ref PublicSubnet2
+    Value: !Ref PublicAppSubnet2
     Export:
       Name: !Sub '${AWS::StackName}-PublicSubnet2Id'
 
@@ -384,8 +385,8 @@ Metadata:
           default: "VPC Configuration"
         Parameters:
           - VPCIPv4CidrBlock
-          - PublicSubnet1CIDR
-          - PublicSubnet2CIDR
+          - PublicAppSubnet1CIDR
+          - PublicAppSubnet2CIDR
           - PrivateAppSubnet1CIDR
           - PrivateAppSubnet2CIDR
           - PrivateDBSubnet1CIDR
