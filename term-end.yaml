@@ -1,0 +1,407 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  CloudFormation template for a three-tier architecture with high availability across two availability zones.
+
+Parameters:
+  NamingPrefix:
+    Type: String
+    Default: myApp
+    Description: Prefix for naming AWS resources
+
+  VPCIPv4CidrBlock:
+    Type: String
+    Default: 172.20.0.0/24
+    Description: CIDR block for the VPC
+
+  PublicSubnet1CIDR:
+    Type: String
+    Default: 172.20.0.0/26
+    Description: CIDR block for the public subnet 1
+
+  PublicSubnet2CIDR:
+    Type: String
+    Default: 172.20.0.64/26
+    Description: CIDR block for the public subnet 2
+
+  PrivateAppSubnet1CIDR:
+    Type: String
+    Default: 172.20.0.128/27
+    Description: CIDR block for the private application subnet 1
+
+  PrivateAppSubnet2CIDR:
+    Type: String
+    Default: 172.20.0.160/27
+    Description: CIDR block for the private application subnet 2
+
+  PrivateDBSubnet1CIDR:
+    Type: String
+    Default: 172.20.0.192/27
+    Description: CIDR block for the private database subnet 1
+
+  PrivateDBSubnet2CIDR:
+    Type: String
+    Default: 172.20.0.224/27
+    Description: CIDR block for the private database subnet 2
+
+Resources:
+  # Create the VPC
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCIPv4CidrBlock
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-VPC'
+
+  # Create an Internet Gateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-InternetGateway'
+
+  # Attach the Internet Gateway to the VPC
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Create public subnets
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnet1CIDR
+      AvailabilityZone: us-east-1a
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-PublicSubnet1'
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PublicSubnet2CIDR
+      AvailabilityZone: us-east-1b
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-PublicSubnet2'
+
+  # Create private subnets for the application tier
+  PrivateAppSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateAppSubnet1CIDR
+      AvailabilityZone: us-east-1a
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-PrivateAppSubnet1'
+
+  PrivateAppSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateAppSubnet2CIDR
+      AvailabilityZone: us-east-1b
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-PrivateAppSubnet2'
+
+  # Create private subnets for the database tier
+  PrivateDBSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateDBSubnet1CIDR
+      AvailabilityZone: us-east-1a
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-PrivateDBSubnet1'
+
+  PrivateDBSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref PrivateDBSubnet2CIDR
+      AvailabilityZone: us-east-1b
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-PrivateDBSubnet2'
+
+  # Create a Route Table for the public subnets
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-PublicRouteTable'
+
+  # Add a route to the Internet Gateway in the public Route Table
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # Associate the public subnets with the public Route Table
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  # Create Elastic IPs for the NAT Gateways
+  EIP1:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  EIP2:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  # Create NAT Gateways in the public subnets
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt EIP1.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-NatGateway1'
+
+  NatGateway2:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt EIP2.AllocationId
+      SubnetId: !Ref PublicSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-NatGateway2'
+
+  # Create a Route Table for the private application subnets
+  PrivateAppRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-PrivateAppRouteTable1'
+
+  PrivateAppRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-PrivateAppRouteTable2'
+
+  # Add routes to the NAT Gateways in the private application Route Tables
+  PrivateAppRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateAppRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+
+  PrivateAppRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateAppRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway2
+
+  # Associate the private application subnets with the private Route Tables
+  PrivateAppSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateAppSubnet1
+      RouteTableId: !Ref PrivateAppRouteTable1
+
+  PrivateAppSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateAppSubnet2
+      RouteTableId: !Ref PrivateAppRouteTable2
+
+  # Create a Route Table for the private database subnets
+  PrivateDBRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-PrivateDBRouteTable'
+
+  # Add routes to the NAT Gateways in the private database Route Tables
+  PrivateDBRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateDBRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+
+  PrivateDBRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateDBRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway2
+
+  # Associate the private database subnets with the private Route Tables
+  PrivateDBSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateDBSubnet1
+      RouteTableId: !Ref PrivateDBRouteTable
+
+  PrivateDBSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateDBSubnet2
+      RouteTableId: !Ref PrivateDBRouteTable
+
+  # Create Security Groups
+  PublicLoadBalancerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP traffic to the public load balancer
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  PublicInstanceSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP traffic from the public load balancer to public instances
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref PublicLoadBalancerSG
+
+  InternalLoadBalancerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP traffic from public instances to the internal load balancer
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref PublicInstanceSG
+
+  PrivateInstanceSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow TCP traffic on port 4000 from the internal load balancer
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 4000
+          ToPort: 4000
+          SourceSecurityGroupId: !Ref InternalLoadBalancerSG
+
+  PrivateDatabaseSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow traffic from private instances to the database
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 27017
+          ToPort: 27017
+          SourceSecurityGroupId: !Ref PrivateInstanceSG
+
+Outputs:
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Sub '${AWS::StackName}-VPCId'
+
+  PublicSubnet1Id:
+    Description: Public Subnet 1 ID
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicSubnet1Id'
+
+  PublicSubnet2Id:
+    Description: Public Subnet 2 ID
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicSubnet2Id'
+
+  PrivateAppSubnet1Id:
+    Description: Private Application Subnet 1 ID
+    Value: !Ref PrivateAppSubnet1
+    Export:
+      Name: !Sub '${AWS::StackName}-PrivateAppSubnet1Id'
+
+  PrivateAppSubnet2Id:
+    Description: Private Application Subnet 2 ID
+    Value: !Ref PrivateAppSubnet2
+    Export:
+      Name: !Sub '${AWS::StackName}-PrivateAppSubnet2Id'
+
+  PrivateDBSubnet1Id:
+    Description: Private Database Subnet 1 ID
+    Value: !Ref PrivateDBSubnet1
+    Export:
+      Name: !Sub '${AWS::StackName}-PrivateDBSubnet1Id'
+
+  PrivateDBSubnet2Id:
+    Description: Private Database Subnet 2 ID
+    Value: !Ref PrivateDBSubnet2
+    Export:
+      Name: !Sub '${AWS::StackName}-PrivateDBSubnet2Id'
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "VPC Configuration"
+        Parameters:
+          - VPCIPv4CidrBlock
+          - PublicSubnet1CIDR
+          - PublicSubnet2CIDR
+          - PrivateAppSubnet1CIDR
+          - PrivateAppSubnet2CIDR
+          - PrivateDBSubnet1CIDR
+          - PrivateDBSubnet2CIDR
+    ParameterLabels:
+      VPCIPv4CidrBlock:
+        default: "VPC CIDR Block"
+      PublicSubnet1CIDR:
+        default: "Public Subnet 1 CIDR Block"
+      PublicSubnet2CIDR:
+        default: "Public Subnet 2 CIDR Block"
+      PrivateAppSubnet1CIDR:
+        default: "Private Application Subnet 1 CIDR Block"
+      PrivateAppSubnet2CIDR:
+        default: "Private Application Subnet 2 CIDR Block"
+      PrivateDBSubnet1CIDR:
+        default: "Private Database Subnet 1 CIDR Block"
+      PrivateDBSubnet2CIDR:
+        default: "Private Database Subnet 2 CIDR Block"
