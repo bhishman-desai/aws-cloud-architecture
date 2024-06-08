@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  CloudFormation template for a three-tier architecture with high availability across two availability zones.
+  CloudFormation template for a three-tier VPC infrastructure with high availability across two availability zones.
   Follows 6 pillars of well architected framework along with their best practices.
 
 Parameters:
