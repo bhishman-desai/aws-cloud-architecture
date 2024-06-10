@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  CloudFormation template for setting up DocumentDB within the specified VPC, including subnet groups and instances.
+  Follows 6 pillars of well architected framework along with their best practices.
+
+Parameters:
+  NamingPrefix:
+    Type: String
+    Default: term-end-app
+    Description: Prefix for naming AWS resources
+
+  DBUsername:
+    Type: String
+    Default: root
+    Description: The database admin account username
+
+  DBPassword:
+    Type: String
+    NoEcho: true
+    Description: The database admin account password
+
+Resources:
+  # Database Subnet Group
+  DocumentDBSubnetGroup:
+    Type: AWS::DocDB::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for DocumentDB
+      SubnetIds:
+        - !ImportValue core-infrastructure-PrivateDBSubnet1Id
+        - !ImportValue core-infrastructure-PrivateDBSubnet2Id
+      DBSubnetGroupName: !Sub '${NamingPrefix}-docdb-subnet-group'
+
+  # DocumentDB Cluster
+  DocumentDBCluster:
+    Type: AWS::DocDB::DBCluster
+    Properties:
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !Ref DocumentDBSubnetGroup
+      VpcSecurityGroupIds:
+        - !ImportValue core-infrastructure-PrivateDatabaseSGId
+      EngineVersion: "4.0.0"
+      StorageEncrypted: true
+      BackupRetentionPeriod: 7
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-docdb-cluster'
+
+  # DocumentDB Instance 1
+  DocumentDBInstance1:
+    Type: AWS::DocDB::DBInstance
+    Properties:
+      DBClusterIdentifier: !Ref DocumentDBCluster
+      DBInstanceClass: db.r5.large
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-docdb-instance-1'
+
+  # DocumentDB Instance 2
+  DocumentDBInstance2:
+    Type: AWS::DocDB::DBInstance
+    Properties:
+      DBClusterIdentifier: !Ref DocumentDBCluster
+      DBInstanceClass: db.r5.large
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-docdb-instance-2'
+
+Outputs:
+  DocumentDBClusterId:
+    Description: DocumentDB Cluster ID
+    Value: !Ref DocumentDBCluster
+    Export:
+      Name: !Sub '${AWS::StackName}-DocumentDBClusterId'
+
+  DocumentDBInstance1Id:
+    Description: DocumentDB Instance 1 ID
+    Value: !Ref DocumentDBInstance1
+    Export:
+      Name: !Sub '${AWS::StackName}-DocumentDBInstance1Id'
+
+  DocumentDBInstance2Id:
+    Description: DocumentDB Instance 2 ID
+    Value: !Ref DocumentDBInstance2
+    Export:
+      Name: !Sub '${AWS::StackName}-DocumentDBInstance2Id'
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Database Configuration"
+        Parameters:
+          - DBUsername
+          - DBPassword
+    ParameterLabels:
+      DBUsername:
+        default: "Database Username"
+      DBPassword:
+        default: "Database Password"

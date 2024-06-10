@@ -6,7 +6,7 @@ Description: >
 Parameters:
   NamingPrefix:
     Type: String
-    Default: myApp
+    Default: term-end-app
     Description: Prefix for naming AWS resources
 
   VPCIPv4CidrBlock:
@@ -385,6 +385,12 @@ Outputs:
     Value: !Ref PrivateDBSubnet2
     Export:
       Name: !Sub '${AWS::StackName}-PrivateDBSubnet2Id'
+
+  PrivateDatabaseSGId:
+    Description: Private Database Security Group
+    Value: !Ref PrivateDatabaseSG
+    Export:
+      Name: !Sub '${AWS::StackName}-PrivateDatabaseSGId'
 
 Metadata:
   AWS::CloudFormation::Interface:
