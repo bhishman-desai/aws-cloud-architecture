@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  CloudFormation template for setting up DocumentDB within the specified VPC, including subnet groups and instances.
+  CloudFormation template for setting up MySQL-Compatible Amazon Aurora RDS within the specified VPC, including subnet groups and instances.
   Follows 6 pillars of well architected framework along with their best practices.
 
 Parameters:
@@ -21,69 +21,75 @@ Parameters:
 
 Resources:
   # Database Subnet Group
-  DocumentDBSubnetGroup:
-    Type: AWS::DocDB::DBSubnetGroup
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: Subnet group for DocumentDB
+      DBSubnetGroupDescription: Subnet group for DB
       SubnetIds:
         - !ImportValue core-infrastructure-PrivateDBSubnet1Id
         - !ImportValue core-infrastructure-PrivateDBSubnet2Id
-      DBSubnetGroupName: !Sub '${NamingPrefix}-docdb-subnet-group'
+      DBSubnetGroupName: !Sub '${NamingPrefix}-db-subnet-group'
 
-  # DocumentDB Cluster
-  DocumentDBCluster:
-    Type: AWS::DocDB::DBCluster
+  # DB Cluster
+  DBCluster:
+    Type: AWS::RDS::DBCluster
     Properties:
+      Engine: aurora-mysql
+      EngineMode: provisioned
       MasterUsername: !Ref DBUsername
       MasterUserPassword: !Ref DBPassword
-      DBSubnetGroupName: !Ref DocumentDBSubnetGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
       VpcSecurityGroupIds:
         - !ImportValue core-infrastructure-PrivateDatabaseSGId
-      EngineVersion: "4.0.0"
-      StorageEncrypted: true
       BackupRetentionPeriod: 7
+      PreferredBackupWindow: 07:00-09:00
+      PreferredMaintenanceWindow: Mon:00:00-Mon:03:00
+      EnableIAMDatabaseAuthentication: false
       Tags:
         - Key: Name
-          Value: !Sub '${NamingPrefix}-docdb-cluster'
+          Value: !Sub '${NamingPrefix}-db-cluster'
 
-  # DocumentDB Instance 1
-  DocumentDBInstance1:
-    Type: AWS::DocDB::DBInstance
+  # DB Instance 1
+  DBInstance1:
+    Type: AWS::RDS::DBInstance
     Properties:
-      DBClusterIdentifier: !Ref DocumentDBCluster
-      DBInstanceClass: db.r5.large
+      DBClusterIdentifier: !Ref DBCluster
+      DBInstanceClass: db.t3.medium
+      Engine: aurora-mysql
       Tags:
         - Key: Name
-          Value: !Sub '${NamingPrefix}-docdb-instance-1'
+          Value: !Sub '${NamingPrefix}-db-instance-1'
 
-  # DocumentDB Instance 2
-  DocumentDBInstance2:
-    Type: AWS::DocDB::DBInstance
+  # DB Instance 2
+  DBInstance2:
+    Type: AWS::RDS::DBInstance
     Properties:
-      DBClusterIdentifier: !Ref DocumentDBCluster
-      DBInstanceClass: db.r5.large
+      DBClusterIdentifier: !Ref DBCluster
+      DBInstanceClass: db.t3.medium
+      Engine: aurora-mysql
+      AvailabilityZone: us-east-1b
       Tags:
         - Key: Name
-          Value: !Sub '${NamingPrefix}-docdb-instance-2'
+          Value: !Sub '${NamingPrefix}-db-instance-2'
 
 Outputs:
-  DocumentDBClusterId:
-    Description: DocumentDB Cluster ID
-    Value: !Ref DocumentDBCluster
+  DBClusterId:
+    Description: DB Cluster ID
+    Value: !Ref DBCluster
     Export:
-      Name: !Sub '${AWS::StackName}-DocumentDBClusterId'
+      Name: !Sub '${AWS::StackName}-DBClusterId'
 
-  DocumentDBInstance1Id:
-    Description: DocumentDB Instance 1 ID
-    Value: !Ref DocumentDBInstance1
+  DBInstance1Id:
+    Description: DB Instance 1 ID
+    Value: !Ref DBInstance1
     Export:
-      Name: !Sub '${AWS::StackName}-DocumentDBInstance1Id'
+      Name: !Sub '${AWS::StackName}-DBInstance1Id'
 
-  DocumentDBInstance2Id:
-    Description: DocumentDB Instance 2 ID
-    Value: !Ref DocumentDBInstance2
+  DBInstance2Id:
+    Description: DB Instance 2 ID
+    Value: !Ref DBInstance2
     Export:
-      Name: !Sub '${AWS::StackName}-DocumentDBInstance2Id'
+      Name: !Sub '${AWS::StackName}-DBInstance2Id'
 
 Metadata:
   AWS::CloudFormation::Interface:
