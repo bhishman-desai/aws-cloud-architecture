@@ -72,6 +72,25 @@ Resources:
         - Key: Name
           Value: !Sub '${NamingPrefix}-db-instance-2'
 
+  # Secrets Manager Secret
+  DBSecret:
+    Type: AWS::SecretsManager::Secret
+    DependsOn: DBCluster
+    Properties:
+      Name: !Sub '${NamingPrefix}-db-credentials'
+      Description: 'Credentials for the Aurora DB Cluster'
+      SecretString: !Sub |
+        {
+          "username": "${DBUsername}",
+          "password": "${DBPassword}",
+          "host": {"Fn::GetAtt": ["DBCluster", "Endpoint.Address"]},
+          "port": "3306",
+          "dbname": "waiting_coder"  # Replace with your database name
+        }
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-db-secret'
+
 Outputs:
   DBClusterId:
     Description: DB Cluster ID
@@ -90,6 +109,12 @@ Outputs:
     Value: !Ref DBInstance2
     Export:
       Name: !Sub '${AWS::StackName}-DBInstance2Id'
+
+  DBSecretArn:
+    Description: ARN of the Secrets Manager Secret
+    Value: !Ref DBSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-DBSecretArn'
 
 Metadata:
   AWS::CloudFormation::Interface:
