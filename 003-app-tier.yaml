@@ -34,7 +34,7 @@ Resources:
       KeyName: !Ref NamingPrefix
       SubnetId: !ImportValue core-infrastructure-PrivateAppSubnet1Id
       SecurityGroupIds:
-        - !ImportValue core-infrastructure-PrivateAppSGId
+        - !ImportValue core-infrastructure-PrivateInstanceSGId
       IamInstanceProfile:
         Arn: !Ref RoleArn
       Tags:

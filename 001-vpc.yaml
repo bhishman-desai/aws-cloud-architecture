@@ -392,6 +392,12 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-PrivateDatabaseSGId'
 
+  PrivateInstanceSGId:
+    Description: Private App Security Group
+    Value: !Ref PrivateInstanceSG
+    Export:
+      Name: !Sub '${AWS::StackName}-PrivateInstanceSGId'
+
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
