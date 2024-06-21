@@ -1,0 +1,119 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  CloudFormation template for setting up an EC2 instance for the app tier, running an Ubuntu AMI with necessary configurations.
+
+Parameters:
+  NamingPrefix:
+    Type: String
+    Default: term-end-app
+    Description: Prefix for naming AWS resources
+
+  RoleArn:
+    Description: Existing IAM role ARN
+    Type: String
+    Default: arn:aws:iam::114580182108:role/LabRole
+
+  AMI:
+    Description: AMI ID
+    Type: String
+    Default: ami-04b70fa74e45c3917
+
+Resources:
+  #EC2 Key Pair
+  KeyPair:
+    Type: 'AWS::EC2::KeyPair'
+    Properties:
+      KeyName: KeyPair
+
+  # EC2 Instance
+  AppTierInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      ImageId: !Ref AMI
+      KeyName: !Ref KeyPair
+      SubnetId: !ImportValue core-infrastructure-PrivateAppSubnet1Id
+      SecurityGroupIds:
+        - !ImportValue core-infrastructure-PrivateAppSGId
+      IamInstanceProfile:
+        Arn: !Ref RoleArn
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-app-tier-instance'
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # Switch to the ubuntu user
+          sudo su ubuntu
+
+          # Update packages
+          sudo apt-get update -y
+
+          # Install MySQL server
+          sudo apt-get install mysql-server -y
+
+          # Fetch database credentials from AWS Secrets Manager
+          DB_SECRET=$(aws secretsmanager get-secret-value --secret-id ${NamingPrefix}-db-credentials --query 'SecretString' --output text)
+          DB_HOST=$(echo $DB_SECRET | jq -r '.host')
+          DB_USER=$(echo $DB_SECRET | jq -r '.username')
+          DB_PASSWORD=$(echo $DB_SECRET | jq -r '.password')
+
+          # Create the database using MySQL CLI
+          mysql -u ${DB_USER} -p${DB_PASSWORD} -h ${DB_HOST} -e "create database waiting_coder;"
+
+          # Install NVM (Node Version Manager)
+          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh | bash
+          source ~/.bashrc
+
+          # Install a compatible version of Node.js and set it as the default
+          nvm install 20
+          nvm use 20
+
+          # Install PM2 (Daemon Process Manager)
+          npm install -g pm2
+
+          # Install AWS CLI
+          sudo apt update -y
+          sudo apt install awscli -y
+
+          # Clone the backend repository
+          git clone https://github.com/abdelkarimhajji/waiting_coder.git
+          cd waiting_coder/backend
+
+          # Install backend dependencies
+          npm install @aws-sdk/client-secrets-manager
+          npm install
+
+          # Start the Node.js application using PM2
+          pm2 start npm --name "waiting_coder" -- run dev
+
+          # Ensure PM2 starts on reboot and saves the current list of processes
+          pm2 startup
+          pm2 save
+
+Outputs:
+  InstanceId:
+    Description: The Instance ID of the app tier
+    Value: !Ref AppTierInstance
+    Export:
+      Name: !Sub '${AWS::StackName}-AppTierInstanceId'
+
+  InstancePublicIP:
+    Description: The public IP address of the app tier instance
+    Value: !GetAtt AppTierInstance.PublicIp
+    Export:
+      Name: !Sub '${AWS::StackName}-AppTierInstancePublicIP'
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "App Tier Configuration"
+        Parameters:
+          - RoleArn
+          - AMI
+    ParameterLabels:
+      RoleArn:
+        default: "IAM Role ARN"
+      AMI:
+        default: "AMI ID"
