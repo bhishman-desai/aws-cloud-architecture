@@ -79,14 +79,15 @@ Resources:
     Properties:
       Name: !Sub 'db-credentials'
       Description: 'Credentials for the Aurora DB Cluster'
-      SecretString: !Sub |
-        {
-          "username": "${DBUsername}",
-          "password": "${DBPassword}",
-          "host": {"Fn::GetAtt": ["DBCluster", "Endpoint.Address"]},
-          "port": "3306",
-          "dbname": "waiting_coder"
-        }
+      SecretString: !Join
+        - ''
+        - - '{ "username": "'
+          - !Ref DBUsername
+          - '", "password": "'
+          - !Ref DBPassword
+          - '", "host": "'
+          - !GetAtt DBCluster.Endpoint.Address
+          - '", "port": "3306", "dbname": "waiting_coder" }'
       Tags:
         - Key: Name
           Value: !Sub '${NamingPrefix}-db-secret'

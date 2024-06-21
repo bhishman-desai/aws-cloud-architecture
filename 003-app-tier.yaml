@@ -1,6 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   CloudFormation template for setting up an EC2 instance for the app tier, running an Ubuntu AMI with necessary configurations.
+  Follows 6 pillars of well architected framework along with their best practices.
 
 Parameters:
   NamingPrefix:
