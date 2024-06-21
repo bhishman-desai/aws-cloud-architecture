@@ -19,11 +19,11 @@ Parameters:
     Default: ami-04b70fa74e45c3917
 
 Resources:
-  #EC2 Key Pair
+  # EC2 Key Pair
   KeyPair:
-    Type: 'AWS::EC2::KeyPair'
+    Type: AWS::EC2::KeyPair
     Properties:
-      KeyName: KeyPair
+      KeyName: !Ref NamingPrefix
 
   # EC2 Instance
   AppTierInstance:
@@ -31,7 +31,7 @@ Resources:
     Properties:
       InstanceType: t3.micro
       ImageId: !Ref AMI
-      KeyName: !Ref KeyPair
+      KeyName: !Ref NamingPrefix
       SubnetId: !ImportValue core-infrastructure-PrivateAppSubnet1Id
       SecurityGroupIds:
         - !ImportValue core-infrastructure-PrivateAppSGId
@@ -52,6 +52,9 @@ Resources:
           # Install MySQL server
           sudo apt-get install mysql-server -y
 
+          # Install jq for JSON parsing
+          sudo apt-get install jq -y
+
           # Fetch database credentials from AWS Secrets Manager
           DB_SECRET=$(aws secretsmanager get-secret-value --secret-id ${NamingPrefix}-db-credentials --query 'SecretString' --output text)
           DB_HOST=$(echo $DB_SECRET | jq -r '.host')
@@ -59,7 +62,7 @@ Resources:
           DB_PASSWORD=$(echo $DB_SECRET | jq -r '.password')
 
           # Create the database using MySQL CLI
-          mysql -u ${DB_USER} -p${DB_PASSWORD} -h ${DB_HOST} -e "create database waiting_coder;"
+          mysql -u $DB_USER -p$DB_PASSWORD -h $DB_HOST -e "create database waiting_coder;"
 
           # Install NVM (Node Version Manager)
           curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh | bash
