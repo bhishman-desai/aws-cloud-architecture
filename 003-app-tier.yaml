@@ -60,9 +60,12 @@ Resources:
 
           # Install jq for JSON parsing
           sudo apt-get install jq -y
+          
+          # Install AWS CLI
+          sudo snap install aws-cli --classic
 
           # Fetch database credentials from AWS Secrets Manager
-          DB_SECRET=$(aws secretsmanager get-secret-value --secret-id ${NamingPrefix}-db-credentials --query 'SecretString' --output text)
+          DB_SECRET=$(aws secretsmanager get-secret-value --secret-id db-credentials --query 'SecretString' --output text)
           DB_HOST=$(echo $DB_SECRET | jq -r '.host')
           DB_USER=$(echo $DB_SECRET | jq -r '.username')
           DB_PASSWORD=$(echo $DB_SECRET | jq -r '.password')
@@ -80,17 +83,15 @@ Resources:
 
           # Install PM2 (Daemon Process Manager)
           npm install -g pm2
-
-          # Install AWS CLI
-          sudo apt update -y
-          sudo apt install awscli -y
-
+          
+          # Install AWS SDK for javascript (used to fetch credentials of db form secret manager)
+          npm install -g @aws-sdk/client-secrets-manager
+          
           # Clone the backend repository
           git clone https://github.com/abdelkarimhajji/waiting_coder.git
           cd waiting_coder/backend
 
           # Install backend dependencies
-          npm install @aws-sdk/client-secrets-manager
           npm install
 
           # Start the Node.js application using PM2

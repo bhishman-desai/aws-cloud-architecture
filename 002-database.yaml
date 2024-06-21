@@ -77,7 +77,7 @@ Resources:
     Type: AWS::SecretsManager::Secret
     DependsOn: DBCluster
     Properties:
-      Name: !Sub '${NamingPrefix}-db-credentials'
+      Name: !Sub 'db-credentials'
       Description: 'Credentials for the Aurora DB Cluster'
       SecretString: !Sub |
         {
@@ -85,7 +85,7 @@ Resources:
           "password": "${DBPassword}",
           "host": {"Fn::GetAtt": ["DBCluster", "Endpoint.Address"]},
           "port": "3306",
-          "dbname": "waiting_coder"  # Replace with your database name
+          "dbname": "waiting_coder"
         }
       Tags:
         - Key: Name
