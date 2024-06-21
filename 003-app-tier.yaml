@@ -49,20 +49,18 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          # Switch to the ubuntu user
-          sudo su ubuntu
-
+          sudo su
           # Update packages
-          sudo apt-get update -y
+          apt-get update -y
 
           # Install MySQL server
-          sudo apt-get install mysql-server -y
+          apt-get install mysql-server -y
 
           # Install jq for JSON parsing
-          sudo apt-get install jq -y
-          
+          apt-get install jq -y
+
           # Install AWS CLI
-          sudo snap install aws-cli --classic
+          snap install aws-cli --classic
 
           # Fetch database credentials from AWS Secrets Manager
           DB_SECRET=$(aws secretsmanager get-secret-value --secret-id db-credentials --query 'SecretString' --output text)
@@ -83,10 +81,10 @@ Resources:
 
           # Install PM2 (Daemon Process Manager)
           npm install -g pm2
-          
-          # Install AWS SDK for javascript (used to fetch credentials of db form secret manager)
+
+          # Install AWS SDK for javascript (used to fetch credentials of db from secret manager)
           npm install -g @aws-sdk/client-secrets-manager
-          
+
           # Clone the backend repository
           git clone https://github.com/abdelkarimhajji/waiting_coder.git
           cd waiting_coder/backend
