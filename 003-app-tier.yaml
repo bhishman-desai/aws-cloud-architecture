@@ -25,6 +25,13 @@ Resources:
     Properties:
       KeyName: !Ref NamingPrefix
 
+  # Profile
+  AppProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - "LabRole"
+
   # EC2 Instance
   AppTierInstance:
     Type: AWS::EC2::Instance
@@ -35,8 +42,7 @@ Resources:
       SubnetId: !ImportValue core-infrastructure-PrivateAppSubnet1Id
       SecurityGroupIds:
         - !ImportValue core-infrastructure-PrivateInstanceSGId
-      IamInstanceProfile:
-        Arn: !Ref RoleArn
+      IamInstanceProfile: !Ref AppProfile
       Tags:
         - Key: Name
           Value: !Sub '${NamingPrefix}-app-tier-instance'
