@@ -107,12 +107,6 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-AppTierInstanceId'
 
-  InstancePublicIP:
-    Description: The public IP address of the app tier instance
-    Value: !GetAtt AppTierInstance.PublicIp
-    Export:
-      Name: !Sub '${AWS::StackName}-AppTierInstancePublicIP'
-
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
