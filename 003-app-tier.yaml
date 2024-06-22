@@ -107,12 +107,71 @@ Resources:
           pm2 startup
           pm2 save
 
+  # Lambda Function to create AMI
+  CreateAmiFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !Ref RoleArn
+      Runtime: nodejs16.x
+      Code:
+        ZipFile: |
+          const AWS = require('aws-sdk');
+          const ec2 = new AWS.EC2();
+          exports.handler = async function(event, context) {
+              const instanceId = event.ResourceProperties.InstanceId;
+              const imageName = event.ResourceProperties.ImageName;
+              const description = event.ResourceProperties.Description;
+              const params = {
+                  InstanceId: instanceId,
+                  Name: imageName,
+                  Description: description,
+                  NoReboot: true
+              };
+              const result = await ec2.createImage(params).promise();
+              return { PhysicalResourceId: result.ImageId, Data: { ImageId: result.ImageId } };
+          };
+
+  # Custom Resource to trigger the Lambda Function
+  CreateAmiCustomResource:
+    Type: Custom::CreateAMI
+    Properties:
+      ServiceToken: !GetAtt CreateAmiFunction.Arn
+      InstanceId: !Ref AppTierInstance
+      ImageName: !Sub '${NamingPrefix}-app-tier-image'
+      Description: App tier AMI with Node.js application and MySQL configurations
+
+  # Create a Launch Template from the AMI
+  AppLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub '${NamingPrefix}-app-tier-launch-template'
+      LaunchTemplateData:
+        ImageId: !GetAtt CreateAmiCustomResource.ImageId
+        InstanceType: t3.micro
+        SecurityGroupIds:
+          - !ImportValue core-infrastructure-PrivateInstanceSGId
+        IamInstanceProfile:
+          Name: !Ref AppProfile
+
 Outputs:
   InstanceId:
     Description: The Instance ID of the app tier
     Value: !Ref AppTierInstance
     Export:
       Name: !Sub '${AWS::StackName}-AppTierInstanceId'
+
+  ImageId:
+    Description: The AMI ID of the app tier
+    Value: !GetAtt CreateAmiCustomResource.ImageId
+    Export:
+      Name: !Sub '${AWS::StackName}-AppTierImageId'
+
+  LaunchTemplateId:
+    Description: The Launch Template ID of the app tier
+    Value: !Ref AppLaunchTemplate
+    Export:
+      Name: !Sub '${AWS::StackName}-AppLaunchTemplateId'
 
 Metadata:
   AWS::CloudFormation::Interface:
