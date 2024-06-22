@@ -120,6 +120,11 @@ Resources:
       Role: !Ref RoleArn
       Runtime: nodejs16.x
       Timeout: 900 # 15 minutes, adjust as needed
+      VpcConfig:
+        SubnetIds:
+          - !ImportValue core-infrastructure-PrivateAppSubnet1Id
+        SecurityGroupIds:
+          - !ImportValue core-infrastructure-PrivateInstanceSGId
       Environment:
         Variables:
           IMAGE_NAME: !Sub '${NamingPrefix}-app-tier-image'
