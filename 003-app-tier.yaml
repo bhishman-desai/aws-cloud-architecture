@@ -114,22 +114,31 @@ Resources:
       Handler: index.handler
       Role: !Ref RoleArn
       Runtime: nodejs16.x
+      Timeout: 900 # 15 minutes, adjust as needed
       Code:
         ZipFile: |
           const AWS = require('aws-sdk');
           const ec2 = new AWS.EC2();
           exports.handler = async function(event, context) {
+              console.log("Event: ", JSON.stringify(event, null, 2));
               const instanceId = event.ResourceProperties.InstanceId;
               const imageName = event.ResourceProperties.ImageName;
               const description = event.ResourceProperties.Description;
+              console.log("Creating AMI for Instance ID: ", instanceId);
               const params = {
                   InstanceId: instanceId,
                   Name: imageName,
                   Description: description,
                   NoReboot: true
               };
-              const result = await ec2.createImage(params).promise();
-              return { PhysicalResourceId: result.ImageId, Data: { ImageId: result.ImageId } };
+              try {
+                  const result = await ec2.createImage(params).promise();
+                  console.log("AMI created: ", result.ImageId);
+                  return { PhysicalResourceId: result.ImageId, Data: { ImageId: result.ImageId } };
+              } catch (error) {
+                  console.error("Error creating AMI: ", error);
+                  throw error;
+              }
           };
 
   # Custom Resource to trigger the Lambda Function
@@ -140,6 +149,7 @@ Resources:
       InstanceId: !Ref AppTierInstance
       ImageName: !Sub '${NamingPrefix}-app-tier-image'
       Description: App tier AMI with Node.js application and MySQL configurations
+      TimeoutInMinutes: 10
 
   # Create a Launch Template from the AMI
   AppLaunchTemplate:
