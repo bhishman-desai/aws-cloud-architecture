@@ -9,6 +9,11 @@ Parameters:
     Default: term-end-app
     Description: Prefix for naming AWS resources
 
+  LabRole:
+    Description: Existing IAM role name
+    Type: String
+    Default: LabRole
+
   RoleArn:
     Description: Existing IAM role ARN
     Type: String
@@ -31,7 +36,7 @@ Resources:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
-        - "LabRole"
+        - !Ref LabRole
 
   # EC2 Instance
   AppTierInstance:
@@ -115,15 +120,21 @@ Resources:
       Role: !Ref RoleArn
       Runtime: nodejs16.x
       Timeout: 900 # 15 minutes, adjust as needed
+      Environment:
+        Variables:
+          IMAGE_NAME: !Sub '${NamingPrefix}-app-tier-image'
+          DESCRIPTION: 'App tier AMI with Node.js application and MySQL configurations'
       Code:
         ZipFile: |
           const AWS = require('aws-sdk');
           const ec2 = new AWS.EC2();
+          const response = require('cfn-response');
+          
           exports.handler = async function(event, context) {
               console.log("Event: ", JSON.stringify(event, null, 2));
-              const instanceId = event.ResourceProperties.InstanceId;
-              const imageName = event.ResourceProperties.ImageName;
-              const description = event.ResourceProperties.Description;
+              const instanceId = event.detail['instance-id'];
+              const imageName = process.env.IMAGE_NAME;
+              const description = process.env.DESCRIPTION;
               console.log("Creating AMI for Instance ID: ", instanceId);
               const params = {
                   InstanceId: instanceId,
@@ -134,22 +145,44 @@ Resources:
               try {
                   const result = await ec2.createImage(params).promise();
                   console.log("AMI created: ", result.ImageId);
-                  return { PhysicalResourceId: result.ImageId, Data: { ImageId: result.ImageId } };
+                  const responseData = { ImageId: result.ImageId };
+                  response.send(event, context, response.SUCCESS, responseData, result.ImageId);
               } catch (error) {
                   console.error("Error creating AMI: ", error);
-                  throw error;
+                  response.send(event, context, response.FAILED, {Error: error.message});
               }
           };
 
-  # Custom Resource to trigger the Lambda Function
-  CreateAmiCustomResource:
-    Type: Custom::CreateAMI
+  # EventBridge Rule to trigger the Lambda Function
+  CreateAmiRule:
+    Type: AWS::Events::Rule
     Properties:
-      ServiceToken: !GetAtt CreateAmiFunction.Arn
-      InstanceId: !Ref AppTierInstance
-      ImageName: !Sub '${NamingPrefix}-app-tier-image'
-      Description: App tier AMI with Node.js application and MySQL configurations
-      TimeoutInMinutes: 10
+      EventPattern:
+        source:
+          - "aws.ec2"
+        detail-type:
+          - "EC2 Instance State-change Notification"
+        detail:
+          state:
+            - "running"
+          instance-id:
+            - !Ref AppTierInstance
+      Targets:
+        - Arn: !GetAtt CreateAmiFunction.Arn
+          Id: "CreateAmiLambda"
+          InputTransformer:
+            InputPathsMap:
+              instanceId: "$.detail.instance-id"
+            InputTemplate: '{"InstanceId": "<instanceId>"}'
+
+  # Lambda Permission to Allow EventBridge to Invoke the Function
+  CreateAmiLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CreateAmiFunction
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: !GetAtt CreateAmiRule.Arn
 
   # Create a Launch Template from the AMI
   AppLaunchTemplate:
@@ -157,7 +190,7 @@ Resources:
     Properties:
       LaunchTemplateName: !Sub '${NamingPrefix}-app-tier-launch-template'
       LaunchTemplateData:
-        ImageId: !GetAtt CreateAmiCustomResource.ImageId
+        ImageId: !GetAtt CreateAmiFunction.ImageId
         InstanceType: t3.micro
         SecurityGroupIds:
           - !ImportValue core-infrastructure-PrivateInstanceSGId
@@ -173,7 +206,7 @@ Outputs:
 
   ImageId:
     Description: The AMI ID of the app tier
-    Value: !GetAtt CreateAmiCustomResource.ImageId
+    Value: !GetAtt CreateAmiFunction.ImageId
     Export:
       Name: !Sub '${AWS::StackName}-AppTierImageId'
 
@@ -189,9 +222,12 @@ Metadata:
       - Label:
           default: "App Tier Configuration"
         Parameters:
+          - LabRole
           - RoleArn
           - AMI
     ParameterLabels:
+      LabRole:
+        default: "Name of the role"
       RoleArn:
         default: "IAM Role ARN"
       AMI:
