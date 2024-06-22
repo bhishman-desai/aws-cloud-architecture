@@ -24,3 +24,6 @@ yarn-error.log*
 
 # IDEs / Code Editors
 .idea/
+
+# Node modules
+resources/wrapping-lambda/node_modules
