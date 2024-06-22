@@ -132,9 +132,17 @@ Resources:
           
           exports.handler = async function(event, context) {
               console.log("Event: ", JSON.stringify(event, null, 2));
-              const instanceId = event.detail['instance-id'];
+              const instanceId = event.ResourceProperties.InstanceId || event.detail['instance-id'];
               const imageName = process.env.IMAGE_NAME;
               const description = process.env.DESCRIPTION;
+
+              if (!instanceId) {
+                  const errorMessage = "Instance ID is undefined in the event.";
+                  console.error(errorMessage);
+                  response.send(event, context, response.FAILED, {Error: errorMessage});
+                  return;
+              }
+
               console.log("Creating AMI for Instance ID: ", instanceId);
               const params = {
                   InstanceId: instanceId,
