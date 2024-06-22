@@ -91,9 +91,13 @@ Resources:
 
           # Clone the backend repository
           git clone https://github.com/abdelkarimhajji/waiting_coder.git
-          cd waiting_coder/backend
+          cd waiting_coder
+          
+          # Populate database with tables and data
+          mysql -u $DB_USER -p$DB_PASSWORD -h $DB_HOST -e "use waiting_coder; source waiting_coder.sql;"
 
           # Install backend dependencies
+          cd backend
           npm install
 
           # Start the Node.js application using PM2
