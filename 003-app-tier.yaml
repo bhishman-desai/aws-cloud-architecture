@@ -90,7 +90,7 @@ Resources:
           npm install -g @aws-sdk/client-secrets-manager
 
           # Clone the backend repository
-          git clone https://github.com/abdelkarimhajji/waiting_coder.git
+          git clone https://github.com/bhishman-desai/waiting_coder.git
           cd waiting_coder
           
           # Populate database with tables and data
