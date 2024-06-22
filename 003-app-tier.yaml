@@ -119,7 +119,7 @@ Resources:
       Handler: index.handler
       Role: !Ref RoleArn
       Runtime: nodejs16.x
-      Timeout: 900 # 15 minutes, adjust as needed
+      Timeout: 300
       VpcConfig:
         SubnetIds:
           - !ImportValue core-infrastructure-PrivateAppSubnet1Id
@@ -133,7 +133,6 @@ Resources:
         ZipFile: |
           const AWS = require('aws-sdk');
           const ec2 = new AWS.EC2();
-          const response = require('cfn-response');
           
           exports.handler = async function(event, context) {
               console.log("Event: ", JSON.stringify(event, null, 2));
@@ -144,8 +143,10 @@ Resources:
               if (!instanceId) {
                   const errorMessage = "Instance ID is undefined in the event.";
                   console.error(errorMessage);
-                  response.send(event, context, response.FAILED, {Error: errorMessage});
-                  return;
+                  return {
+                      StatusCode: 500,
+                      Body: {Error: errorMessage}
+                  };
               }
 
               console.log("Creating AMI for Instance ID: ", instanceId);
@@ -158,19 +159,46 @@ Resources:
               try {
                   const result = await ec2.createImage(params).promise();
                   console.log("AMI created: ", result.ImageId);
-                  const responseData = { ImageId: result.ImageId };
-                  response.send(event, context, response.SUCCESS, responseData, result.ImageId);
+                  return {
+                      StatusCode: 200,
+                      Body: { ImageId: result.ImageId }
+                  };
               } catch (error) {
                   console.error("Error creating AMI: ", error);
-                  response.send(event, context, response.FAILED, {Error: error.message});
+                  return {
+                      StatusCode: 500,
+                      Body: {Error: error.message}
+                  };
               }
           };
 
-  # Custom Resource to capture the AMI ID from the Lambda Function
+  # Wrapper Lambda Function
+  WrappingLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !Ref RoleArn
+      Runtime: nodejs16.x
+      Timeout: 300
+      VpcConfig:
+        SubnetIds:
+          - !ImportValue core-infrastructure-PrivateAppSubnet1Id
+        SecurityGroupIds:
+          - !ImportValue core-infrastructure-PrivateInstanceSGId
+      Environment:
+        Variables:
+          AMI_LAMBDA_ARN: !GetAtt CreateAmiFunction.Arn
+      Code:
+        S3Bucket: term-end
+        S3Key: wrapping-lambda.zip
+
+  # Custom Resource to capture the AMI ID from the Wrapper Lambda Function
   CreateAmiCustomResource:
     Type: Custom::CreateAmi
     Properties:
-      ServiceToken: !GetAtt CreateAmiFunction.Arn
+      ServiceToken: !GetAtt WrappingLambdaFunction.Arn
+      ServiceTimeout: 300
+      LambdaFunctionName: !Ref CreateAmiFunction
       InstanceId: !Ref AppTierInstance
 
   # Create a Launch Template from the AMI
@@ -204,6 +232,12 @@ Outputs:
     Value: !Ref AppLaunchTemplate
     Export:
       Name: !Sub '${AWS::StackName}-AppLaunchTemplateId'
+
+  WrapperLambdaFunctionOutput:
+    Description: Wrapper Lambda Function Output
+    Value: !GetAtt CreateAmiCustomResource.Response
+    Export:
+      Name: !Sub '${AWS::StackName}-WrapperLambdaFunctionOutput'
 
 Metadata:
   AWS::CloudFormation::Interface:
