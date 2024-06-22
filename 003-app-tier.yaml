@@ -153,36 +153,12 @@ Resources:
               }
           };
 
-  # EventBridge Rule to trigger the Lambda Function
-  CreateAmiRule:
-    Type: AWS::Events::Rule
+  # Custom Resource to capture the AMI ID from the Lambda Function
+  CreateAmiCustomResource:
+    Type: Custom::CreateAmi
     Properties:
-      EventPattern:
-        source:
-          - "aws.ec2"
-        detail-type:
-          - "EC2 Instance State-change Notification"
-        detail:
-          state:
-            - "running"
-          instance-id:
-            - !Ref AppTierInstance
-      Targets:
-        - Arn: !GetAtt CreateAmiFunction.Arn
-          Id: "CreateAmiLambda"
-          InputTransformer:
-            InputPathsMap:
-              instanceId: "$.detail.instance-id"
-            InputTemplate: '{"InstanceId": "<instanceId>"}'
-
-  # Lambda Permission to Allow EventBridge to Invoke the Function
-  CreateAmiLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref CreateAmiFunction
-      Action: "lambda:InvokeFunction"
-      Principal: "events.amazonaws.com"
-      SourceArn: !GetAtt CreateAmiRule.Arn
+      ServiceToken: !GetAtt CreateAmiFunction.Arn
+      InstanceId: !Ref AppTierInstance
 
   # Create a Launch Template from the AMI
   AppLaunchTemplate:
@@ -190,7 +166,7 @@ Resources:
     Properties:
       LaunchTemplateName: !Sub '${NamingPrefix}-app-tier-launch-template'
       LaunchTemplateData:
-        ImageId: !GetAtt CreateAmiFunction.ImageId
+        ImageId: !GetAtt CreateAmiCustomResource.ImageId
         InstanceType: t3.micro
         SecurityGroupIds:
           - !ImportValue core-infrastructure-PrivateInstanceSGId
@@ -206,7 +182,7 @@ Outputs:
 
   ImageId:
     Description: The AMI ID of the app tier
-    Value: !GetAtt CreateAmiFunction.ImageId
+    Value: !GetAtt CreateAmiCustomResource.ImageId
     Export:
       Name: !Sub '${AWS::StackName}-AppTierImageId'
 
