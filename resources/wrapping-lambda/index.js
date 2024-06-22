@@ -86,11 +86,19 @@ exports.handler = async (event, context) => {
 
             console.log("lambda response:", payload);
 
-            if (payload.StatusCode !== 200) {
-                const errorMessage = `Lambda invocation failed: ${payload.Body.Error}`;
-                await cfnresponse.send(event, context, cfnresponse.FAILED, {}, errorMessage, false, errorMessage);
-            } else {
-                await cfnresponse.send(event, context, cfnresponse.SUCCESS, { Response: JSON.stringify(payload) }, "Lambda invocation succeeded", false, "Lambda invocation succeeded");
+            if (payload.StatusCode === '200' || payload.StatusCode === 200) {
+                await cfnresponse.send(event, context, cfnresponse.SUCCESS, { "ImageId": payload.Body.ImageId }, "Lambda invocation succeeded", false, "Lambda invocation succeeded");
+            }
+            else{
+                if(payload['Body']['Error'].includes("AMI name") && payload['Body']['Error'].includes("is already in use by AMI")){
+                    console.log("AMI already exists. Sending success response.");
+                    const amiId = payload['Body']['Error'].split(' ').pop(); // Extracts the AMI ID from the error message
+                    await cfnresponse.send(event, context, cfnresponse.SUCCESS, { "ImageId": amiId }, "Existing AMI", false, "Existing AMI");
+                }
+                else {
+                    const errorMessage = `Lambda invocation failed: ${payload['Body']['Error']}`;
+                    await cfnresponse.send(event, context, cfnresponse.FAILED, {}, errorMessage, false, errorMessage);
+                }
             }
         } catch (error) {
             const errorMessage = `Lambda invocation failed: ${error.message}`;

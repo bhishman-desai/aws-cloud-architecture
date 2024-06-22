@@ -233,12 +233,6 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-AppLaunchTemplateId'
 
-  WrapperLambdaFunctionOutput:
-    Description: Wrapper Lambda Function Output
-    Value: !GetAtt CreateAmiCustomResource.Response
-    Export:
-      Name: !Sub '${AWS::StackName}-WrapperLambdaFunctionOutput'
-
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
