@@ -1,0 +1,109 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  CloudFormation template for setting up internal load balancing and auto scaling for the app tier.
+  Follows 6 pillars of well architected framework along with their best practices.
+
+Parameters:
+  NamingPrefix:
+    Type: String
+    Default: term-end-app
+    Description: Prefix for naming AWS resources
+
+Resources:
+  # Target Group
+  AppTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${NamingPrefix}-target-group'
+      Protocol: HTTP
+      Port: 4000
+      VpcId: !ImportValue core-infrastructure-VPCId
+      TargetType: instance
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: /
+      HealthCheckPort: traffic-port
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 5
+      UnhealthyThresholdCount: 2
+      Matcher:
+        HttpCode: 200
+
+  # Load Balancer
+  AppLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub '${NamingPrefix}-internal-alb'
+      Scheme: internal
+      Subnets:
+        - !ImportValue core-infrastructure-PrivateAppSubnet1Id
+        - !ImportValue core-infrastructure-PrivateAppSubnet2Id
+      SecurityGroups:
+        - !ImportValue core-infrastructure-PrivateInstanceSGId
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: '60'
+
+  # Listener
+  AppListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref AppLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref AppTargetGroup
+
+  # Auto Scaling Group
+  AppAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: !Sub '${NamingPrefix}-asg'
+      LaunchTemplate:
+        LaunchTemplateId: !ImportValue AppLaunchTemplateId
+        Version: !ImportValue AppLaunchTemplateVersion
+      VPCZoneIdentifier:
+        - !ImportValue core-infrastructure-PrivateAppSubnet1Id
+        - !ImportValue core-infrastructure-PrivateAppSubnet2Id
+      TargetGroupARNs:
+        - !Ref AppTargetGroup
+      MinSize: 2
+      MaxSize: 3
+      DesiredCapacity: 2
+      HealthCheckType: EC2
+      HealthCheckGracePeriod: 300
+      Tags:
+        - Key: Name
+          Value: !Sub '${NamingPrefix}-app-instance'
+          PropagateAtLaunch: true
+
+Outputs:
+  LoadBalancerDNSName:
+    Description: DNS name of the internal load balancer
+    Value: !GetAtt AppLoadBalancer.DNSName
+    Export:
+      Name: !Sub '${AWS::StackName}-LoadBalancerDNSName'
+
+  TargetGroupArn:
+    Description: ARN of the target group
+    Value: !Ref AppTargetGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-TargetGroupArn'
+
+  AutoScalingGroupName:
+    Description: Name of the Auto Scaling group
+    Value: !Ref AppAutoScalingGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-AutoScalingGroupName'
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "App Tier Load Balancer and Auto Scaling Configuration"
+        Parameters:
+          - NamingPrefix
+    ParameterLabels:
+      NamingPrefix:
+        default: "Naming Prefix"
