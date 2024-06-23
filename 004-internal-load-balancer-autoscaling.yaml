@@ -61,8 +61,8 @@ Resources:
     Properties:
       AutoScalingGroupName: !Sub '${NamingPrefix}-asg'
       LaunchTemplate:
-        LaunchTemplateId: !ImportValue AppLaunchTemplateId
-        Version: !ImportValue AppLaunchTemplateVersion
+        LaunchTemplateId: !ImportValue app-AppLaunchTemplateId
+        Version: !ImportValue app-AppLaunchTemplateVersion
       VPCZoneIdentifier:
         - !ImportValue core-infrastructure-PrivateAppSubnet1Id
         - !ImportValue core-infrastructure-PrivateAppSubnet2Id

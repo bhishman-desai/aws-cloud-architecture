@@ -2,6 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   CloudFormation template for a three-tier VPC infrastructure with high availability across two availability zones.
   Follows 6 pillars of well architected framework along with their best practices.
+  Mandatory: The stack name should be core-infrastructure. This is crucial as other stacks are importing values from this stack and will not work properly if the stack name is different.
 
 Parameters:
   NamingPrefix:
