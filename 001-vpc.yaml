@@ -399,6 +399,12 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-PrivateInstanceSGId'
 
+  InternalLoadBalancerSG:
+    Description: Internal Load Balancer Security Group
+    Value: !Ref InternalLoadBalancerSG
+    Export:
+      Name: !Sub '${AWS::StackName}-InternalLoadBalancerSG'
+
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:

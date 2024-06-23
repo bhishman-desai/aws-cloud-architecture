@@ -39,7 +39,7 @@ Resources:
         - !ImportValue core-infrastructure-PrivateAppSubnet1Id
         - !ImportValue core-infrastructure-PrivateAppSubnet2Id
       SecurityGroups:
-        - !ImportValue core-infrastructure-PrivateInstanceSGId
+        - !ImportValue core-infrastructure-InternalLoadBalancerSG
       LoadBalancerAttributes:
         - Key: idle_timeout.timeout_seconds
           Value: '60'
