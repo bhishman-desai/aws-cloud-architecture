@@ -233,6 +233,12 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-AppLaunchTemplateId'
 
+  LaunchTemplateVersion:
+    Description: The version of the Launch Template
+    Value: !GetAtt AppLaunchTemplate.LatestVersionNumber
+    Export:
+      Name: !Sub '${AWS::StackName}-AppLaunchTemplateVersion'
+
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
