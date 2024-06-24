@@ -1,15 +1,19 @@
-# TODO: Add repository link as an input parameter
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  CloudFormation template for setting up an EC2 instance for the app tier, running an Ubuntu AMI with necessary configurations.
+  CloudFormation template for setting up an EC2 instance for the web tier, running an NGINX server on an Ubuntu AMI with necessary configurations.
   Follows 6 pillars of well architected framework along with their best practices.
-  Mandatory: The stack name should be app. This is crucial as other stacks are importing values from this stack and will not work properly if the stack name is different.
+  Mandatory: The stack name should be web. This is crucial as other stacks are importing values from this stack and will not work properly if the stack name is different.
 
 Parameters:
   NamingPrefix:
     Type: String
-    Default: term-end-app
+    Default: term-end-web
     Description: Prefix for naming AWS resources
+
+  KeyName:
+    Type: String
+    Default: term-end
+    Description: Key name for EC2
 
   LabRole:
     Description: Existing IAM role name
@@ -26,34 +30,34 @@ Parameters:
     Type: String
     Default: ami-04b70fa74e45c3917
 
+  Repository:
+    Description: Repository to clone
+    Type: String
+    Default: https://github.com/bhishman-desai/waiting_coder.git
+
 Resources:
-  # EC2 Key Pair
-  KeyPair:
-    Type: AWS::EC2::KeyPair
-    Properties:
-      KeyName: !Ref NamingPrefix
 
   # Profile
-  AppProfile:
+  WebProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
         - !Ref LabRole
 
   # EC2 Instance
-  AppTierInstance:
+  WebTierInstance:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: t3.micro
       ImageId: !Ref AMI
-      KeyName: !Ref NamingPrefix
-      SubnetId: !ImportValue core-infrastructure-PrivateAppSubnet1Id
+      KeyName: !Ref KeyName
+      SubnetId: !ImportValue core-infrastructure-PublicSubnet1Id
       SecurityGroupIds:
-        - !ImportValue core-infrastructure-PrivateInstanceSGId
-      IamInstanceProfile: !Ref AppProfile
+        - !ImportValue core-infrastructure-PublicInstanceSGId
+      IamInstanceProfile: !Ref WebProfile
       Tags:
         - Key: Name
-          Value: !Sub '${NamingPrefix}-app-tier-instance'
+          Value: !Sub '${NamingPrefix}-web-tier-instance'
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -63,136 +67,33 @@ Resources:
           # Update packages
           apt-get update -y
 
-          # Install MySQL server
-          apt-get install mysql-server -y
+          # Install NGINX
+          apt-get install -y nginx
 
-          # Install jq for JSON parsing
-          apt-get install jq -y
+          # Install Node.js and npm
+          curl -sL https://deb.nodesource.com/setup_20.x | bash -
+          apt-get install -y nodejs
 
-          # Install AWS CLI
-          snap install aws-cli --classic
-
-          # Fetch database credentials from AWS Secrets Manager
-          DB_SECRET=$(aws secretsmanager get-secret-value --secret-id db-credentials --query 'SecretString' --output text)
-          DB_HOST=$(echo $DB_SECRET | jq -r '.host')
-          DB_USER=$(echo $DB_SECRET | jq -r '.username')
-          DB_PASSWORD=$(echo $DB_SECRET | jq -r '.password')
-
-          # Create the database using MySQL CLI
-          mysql -u $DB_USER -p$DB_PASSWORD -h $DB_HOST -e "create database waiting_coder;"
-
-          # Install NVM (Node Version Manager)
-          curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" 
-
-          # Install a compatible version of Node.js and set it as the default
-          nvm install 20
-          nvm use 20
-
-          # Install PM2 (Daemon Process Manager)
-          npm install -g pm2
-
-          # Install AWS SDK for javascript (used to fetch credentials of db from secret manager)
-          npm install -g @aws-sdk/client-secrets-manager
-
-          # Clone the backend repository
-          git clone https://github.com/bhishman-desai/waiting_coder.git
+          # Clone the repository
+          git clone ${Repository}
           cd waiting_coder
-          
-          # Populate database with tables and data
-          mysql -u $DB_USER -p$DB_PASSWORD -h $DB_HOST -e "use waiting_coder; source waiting_coder.sql;"
 
-          # Install backend dependencies
-          cd backend
+          # Install frontend dependencies and build
           npm install
+          npm run build
 
-          # Start the Node.js application using PM2
-          pm2 start npm --name "waiting_coder" -- run dev
+          # Configure NGINX
+          cd /etc/nginx
+          sudo rm nginx.conf
+          cp /waiting_coder/nginx.conf .
 
-          # Ensure PM2 starts on reboot and saves the current list of processes
-          pm2 startup
-          pm2 save
+          # Restart NGINX
+          sudo useradd -s /sbin/nologin nginx
+          sudo systemctl restart nginx
+          sudo systemctl status nginx
 
-  # Lambda Function to create AMI
-  CreateAmiFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      Handler: index.handler
-      Role: !Ref RoleArn
-      Runtime: nodejs16.x
-      Timeout: 300
-      VpcConfig:
-        SubnetIds:
-          - !ImportValue core-infrastructure-PrivateAppSubnet1Id
-        SecurityGroupIds:
-          - !ImportValue core-infrastructure-PrivateInstanceSGId
-      Environment:
-        Variables:
-          IMAGE_NAME: !Sub '${NamingPrefix}-app-tier-image'
-          DESCRIPTION: 'App tier AMI with Node.js application and MySQL configurations'
-      Code:
-        ZipFile: |
-          const AWS = require('aws-sdk');
-          const ec2 = new AWS.EC2();
-          
-          exports.handler = async function(event, context) {
-              console.log("Event: ", JSON.stringify(event, null, 2));
-              const instanceId = event.ResourceProperties.InstanceId || event.detail['instance-id'];
-              const imageName = process.env.IMAGE_NAME;
-              const description = process.env.DESCRIPTION;
-
-              if (!instanceId) {
-                  const errorMessage = "Instance ID is undefined in the event.";
-                  console.error(errorMessage);
-                  return {
-                      StatusCode: 500,
-                      Body: {Error: errorMessage}
-                  };
-              }
-
-              console.log("Creating AMI for Instance ID: ", instanceId);
-              const params = {
-                  InstanceId: instanceId,
-                  Name: imageName,
-                  Description: description,
-                  NoReboot: true
-              };
-              try {
-                  const result = await ec2.createImage(params).promise();
-                  console.log("AMI created: ", result.ImageId);
-                  return {
-                      StatusCode: 200,
-                      Body: { ImageId: result.ImageId }
-                  };
-              } catch (error) {
-                  console.error("Error creating AMI: ", error);
-                  return {
-                      StatusCode: 500,
-                      Body: {Error: error.message}
-                  };
-              }
-          };
-
-  # Wrapper Lambda Function
-  WrappingLambdaFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      Handler: index.handler
-      Role: !Ref RoleArn
-      Runtime: nodejs16.x
-      Timeout: 300
-      VpcConfig:
-        SubnetIds:
-          - !ImportValue core-infrastructure-PrivateAppSubnet1Id
-        SecurityGroupIds:
-          - !ImportValue core-infrastructure-PrivateInstanceSGId
-      Environment:
-        Variables:
-          AMI_LAMBDA_ARN: !GetAtt CreateAmiFunction.Arn
-      Code:
-        S3Bucket: term-end
-        S3Key: wrapping-lambda.zip
+          # Ensure NGINX has permission to access our files
+          sudo chmod -R 755 /home/ubuntu
 
   # Custom Resource to capture the AMI ID from the Wrapper Lambda Function
   CreateAmiCustomResource:
@@ -201,59 +102,30 @@ Resources:
       ServiceToken: !GetAtt WrappingLambdaFunction.Arn
       ServiceTimeout: 300
       LambdaFunctionName: !Ref CreateAmiFunction
-      InstanceId: !Ref AppTierInstance
+      InstanceId: !Ref WebTierInstance
 
   # Create a Launch Template from the AMI
   AppLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
-      LaunchTemplateName: !Sub '${NamingPrefix}-app-tier-launch-template'
+      LaunchTemplateName: !Sub '${NamingPrefix}-web-tier-launch-template'
       LaunchTemplateData:
         ImageId: !GetAtt CreateAmiCustomResource.ImageId
         InstanceType: t3.micro
         SecurityGroupIds:
-          - !ImportValue core-infrastructure-PrivateInstanceSGId
+          - !ImportValue core-infrastructure-PublicInstanceSGId
         IamInstanceProfile:
-          Name: !Ref AppProfile
+          Name: !Ref WebProfile
 
 Outputs:
   InstanceId:
-    Description: The Instance ID of the app tier
-    Value: !Ref AppTierInstance
+    Description: The Instance ID of the web tier
+    Value: !Ref WebTierInstance
     Export:
-      Name: !Sub '${AWS::StackName}-AppTierInstanceId'
+      Name: !Sub '${AWS::StackName}-WebTierInstanceId'
 
-  ImageId:
-    Description: The AMI ID of the app tier
-    Value: !GetAtt CreateAmiCustomResource.ImageId
+  PublicDnsName:
+    Description: The public DNS name of the web tier instance
+    Value: !GetAtt WebTierInstance.PublicDnsName
     Export:
-      Name: !Sub '${AWS::StackName}-AppTierImageId'
-
-  LaunchTemplateId:
-    Description: The Launch Template ID of the app tier
-    Value: !Ref AppLaunchTemplate
-    Export:
-      Name: !Sub '${AWS::StackName}-AppLaunchTemplateId'
-
-  LaunchTemplateVersion:
-    Description: The version of the Launch Template
-    Value: !GetAtt AppLaunchTemplate.LatestVersionNumber
-    Export:
-      Name: !Sub '${AWS::StackName}-AppLaunchTemplateVersion'
-
-Metadata:
-  AWS::CloudFormation::Interface:
-    ParameterGroups:
-      - Label:
-          default: "App Tier Configuration"
-        Parameters:
-          - LabRole
-          - RoleArn
-          - AMI
-    ParameterLabels:
-      LabRole:
-        default: "Name of the role"
-      RoleArn:
-        default: "IAM Role ARN"
-      AMI:
-        default: "AMI ID"
+      Name: !Sub '${AWS::StackName}-WebTierPublicDnsName'
