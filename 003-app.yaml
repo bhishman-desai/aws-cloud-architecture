@@ -33,7 +33,7 @@ Parameters:
   Repository:
     Description: Repository to clone
     Type: String
-    Default: https://github.com/bhishman-desai/waiting_coder.git
+    Default: -b bhishman/no-ref/changes https://github.com/bhishman-desai/waiting_coder.git
 
 Resources:
 
