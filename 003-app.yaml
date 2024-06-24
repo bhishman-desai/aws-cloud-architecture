@@ -245,6 +245,18 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-AppLaunchTemplateVersion'
 
+  WrappingLambdaFunctionArn:
+    Description: The ARN of the Wrapping Lambda Function
+    Value: !GetAtt WrappingLambdaFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-WrappingLambdaFunctionArn'
+
+  CreateAmiFunctionName:
+    Description: The name of the Create AMI Lambda Function
+    Value: !Ref CreateAmiFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-CreateAmiFunctionName'
+
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -254,10 +266,19 @@ Metadata:
           - LabRole
           - RoleArn
           - AMI
+          - Repository
+          - KeyName
+          - NamingPrefix
     ParameterLabels:
+      NamingPrefix:
+        default: "Naming Prefix for Resources"
+      KeyName:
+        default: "EC2 Key Pair Name"
       LabRole:
-        default: "Name of the role"
+        default: "Existing IAM Role Name"
       RoleArn:
-        default: "IAM Role ARN"
+        default: "Existing IAM Role ARN"
       AMI:
         default: "AMI ID"
+      Repository:
+        default: "Repository to Clone"

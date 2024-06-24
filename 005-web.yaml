@@ -99,13 +99,13 @@ Resources:
   CreateAmiCustomResource:
     Type: Custom::CreateAmi
     Properties:
-      ServiceToken: !GetAtt WrappingLambdaFunction.Arn
+      ServiceToken: !ImportValue app-WrappingLambdaFunctionArn
       ServiceTimeout: 300
-      LambdaFunctionName: !Ref CreateAmiFunction
+      LambdaFunctionName: !ImportValue app-CreateAmiFunctionName
       InstanceId: !Ref WebTierInstance
 
   # Create a Launch Template from the AMI
-  AppLaunchTemplate:
+  WebLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
       LaunchTemplateName: !Sub '${NamingPrefix}-web-tier-launch-template'
@@ -129,3 +129,15 @@ Outputs:
     Value: !GetAtt WebTierInstance.PublicDnsName
     Export:
       Name: !Sub '${AWS::StackName}-WebTierPublicDnsName'
+
+  LaunchTemplateId:
+    Description: The Launch Template ID of the web tier
+    Value: !Ref WebLaunchTemplate
+    Export:
+      Name: !Sub '${AWS::StackName}-WebLaunchTemplateId'
+
+  LaunchTemplateVersion:
+    Description: The version of the Launch Template
+    Value: !GetAtt WebLaunchTemplate.LatestVersionNumber
+    Export:
+      Name: !Sub '${AWS::StackName}-WebLaunchTemplateVersion'
