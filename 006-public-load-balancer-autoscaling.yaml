@@ -9,6 +9,11 @@ Parameters:
     Default: term-end-web
     Description: Prefix for naming AWS resources
 
+  CertificateArn:
+    Type: String
+    Description: ARN of the SSL certificate for HTTPS
+    Default: arn:aws:acm:region:account-id:certificate/certificate-id
+
 Resources:
   # Target Group
   WebTargetGroup:
@@ -51,6 +56,19 @@ Resources:
       LoadBalancerArn: !Ref WebLoadBalancer
       Port: 80
       Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref WebTargetGroup
+
+  # HTTPS Listener
+  WebHttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref WebLoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref WebTargetGroup
@@ -104,6 +122,9 @@ Metadata:
           default: "Web Tier Load Balancer and Auto Scaling Configuration"
         Parameters:
           - NamingPrefix
+          - CertificateArn
     ParameterLabels:
       NamingPrefix:
         default: "Naming Prefix"
+      CertificateArn:
+        default: "SSL Certificate ARN"
