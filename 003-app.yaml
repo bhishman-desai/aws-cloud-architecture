@@ -1,4 +1,3 @@
-# TODO: Add repository link as an input parameter
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   CloudFormation template for setting up an EC2 instance for the app tier, running an Ubuntu AMI with necessary configurations.
@@ -10,6 +9,11 @@ Parameters:
     Type: String
     Default: term-end-app
     Description: Prefix for naming AWS resources
+
+  KeyName:
+    Type: String
+    Default: term-end
+    Description: Key name for EC2
 
   LabRole:
     Description: Existing IAM role name
@@ -26,12 +30,12 @@ Parameters:
     Type: String
     Default: ami-04b70fa74e45c3917
 
+  Repository:
+    Description: Repository to clone
+    Type: String
+    Default: https://github.com/bhishman-desai/waiting_coder.git
+
 Resources:
-  # EC2 Key Pair
-  KeyPair:
-    Type: AWS::EC2::KeyPair
-    Properties:
-      KeyName: !Ref NamingPrefix
 
   # Profile
   AppProfile:
@@ -46,7 +50,7 @@ Resources:
     Properties:
       InstanceType: t3.micro
       ImageId: !Ref AMI
-      KeyName: !Ref NamingPrefix
+      KeyName: !Ref KeyName
       SubnetId: !ImportValue core-infrastructure-PrivateAppSubnet1Id
       SecurityGroupIds:
         - !ImportValue core-infrastructure-PrivateInstanceSGId
@@ -97,7 +101,7 @@ Resources:
           npm install -g @aws-sdk/client-secrets-manager
 
           # Clone the backend repository
-          git clone https://github.com/bhishman-desai/waiting_coder.git
+          git clone ${Repository}
           cd waiting_coder
           
           # Populate database with tables and data

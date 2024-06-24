@@ -387,6 +387,12 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-PrivateDBSubnet2Id'
 
+  PublicInstanceSGId:
+    Description: Public Web Security Group
+    Value: !Ref PublicInstanceSG
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicInstanceSGId'
+
   PrivateDatabaseSGId:
     Description: Private Database Security Group
     Value: !Ref PrivateDatabaseSG
@@ -398,6 +404,12 @@ Outputs:
     Value: !Ref PrivateInstanceSG
     Export:
       Name: !Sub '${AWS::StackName}-PrivateInstanceSGId'
+
+  PublicLoadBalancerSG:
+    Description: Public Load Balancer Security Group
+    Value: !Ref PublicLoadBalancerSG
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicLoadBalancerSG'
 
   InternalLoadBalancerSG:
     Description: Internal Load Balancer Security Group
