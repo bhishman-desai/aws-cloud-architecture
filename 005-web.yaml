@@ -103,6 +103,7 @@ Resources:
       ServiceTimeout: 300
       LambdaFunctionName: !ImportValue app-CreateAmiFunctionName
       InstanceId: !Ref WebTierInstance
+      ImageName: !Sub '${NamingPrefix}-web-tier-image'
 
   # Create a Launch Template from the AMI
   WebLaunchTemplate:

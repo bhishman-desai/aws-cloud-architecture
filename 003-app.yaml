@@ -133,7 +133,6 @@ Resources:
           - !ImportValue core-infrastructure-PrivateInstanceSGId
       Environment:
         Variables:
-          IMAGE_NAME: !Sub '${NamingPrefix}-app-tier-image'
           DESCRIPTION: 'App tier AMI with Node.js application and MySQL configurations'
       Code:
         ZipFile: |
@@ -143,7 +142,7 @@ Resources:
           exports.handler = async function(event, context) {
               console.log("Event: ", JSON.stringify(event, null, 2));
               const instanceId = event.ResourceProperties.InstanceId || event.detail['instance-id'];
-              const imageName = process.env.IMAGE_NAME;
+              const imageName = event.ResourceProperties.ImageName || event.detail['instance-id'] || process.env.IMAGE_NAME;
               const description = process.env.DESCRIPTION;
 
               if (!instanceId) {
@@ -206,6 +205,7 @@ Resources:
       ServiceTimeout: 300
       LambdaFunctionName: !Ref CreateAmiFunction
       InstanceId: !Ref AppTierInstance
+      ImageName: !Sub '${NamingPrefix}-app-tier-image'
 
   # Create a Launch Template from the AMI
   AppLaunchTemplate:
