@@ -11,12 +11,12 @@ Parameters:
 
 Resources:
   # Target Group
-  AppTargetGroup:
+  WebTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Name: !Sub '${NamingPrefix}-target-group'
       Protocol: HTTP
-      Port: 4000
+      Port: 80
       VpcId: !ImportValue core-infrastructure-VPCId
       TargetType: instance
       HealthCheckIntervalSeconds: 30
@@ -30,78 +30,78 @@ Resources:
         HttpCode: 200
 
   # Load Balancer
-  AppLoadBalancer:
+  WebLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub '${NamingPrefix}-internal-alb'
-      Scheme: internal
+      Name: !Sub '${NamingPrefix}-public-alb'
+      Scheme: internet-facing
       Subnets:
-        - !ImportValue core-infrastructure-PrivateAppSubnet1Id
-        - !ImportValue core-infrastructure-PrivateAppSubnet2Id
+        - !ImportValue core-infrastructure-PublicSubnet1Id
+        - !ImportValue core-infrastructure-PublicSubnet2Id
       SecurityGroups:
-        - !ImportValue core-infrastructure-InternalLoadBalancerSG
+        - !ImportValue core-infrastructure-PublicLoadBalancerSG
       LoadBalancerAttributes:
         - Key: idle_timeout.timeout_seconds
           Value: '60'
 
   # Listener
-  AppListener:
+  WebListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      LoadBalancerArn: !Ref AppLoadBalancer
+      LoadBalancerArn: !Ref WebLoadBalancer
       Port: 80
       Protocol: HTTP
       DefaultActions:
         - Type: forward
-          TargetGroupArn: !Ref AppTargetGroup
+          TargetGroupArn: !Ref WebTargetGroup
 
   # Auto Scaling Group
-  AppAutoScalingGroup:
+  WebAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       AutoScalingGroupName: !Sub '${NamingPrefix}-asg'
       LaunchTemplate:
-        LaunchTemplateId: !ImportValue app-AppLaunchTemplateId
-        Version: !ImportValue app-AppLaunchTemplateVersion
+        LaunchTemplateId: !ImportValue web-WebLaunchTemplateId
+        Version: !ImportValue web-WebLaunchTemplateVersion
       VPCZoneIdentifier:
-        - !ImportValue core-infrastructure-PrivateAppSubnet1Id
-        - !ImportValue core-infrastructure-PrivateAppSubnet2Id
+        - !ImportValue core-infrastructure-PublicSubnet1Id
+        - !ImportValue core-infrastructure-PublicSubnet2Id
       TargetGroupARNs:
-        - !Ref AppTargetGroup
+        - !Ref WebTargetGroup
       MinSize: 2
       MaxSize: 3
       DesiredCapacity: 2
-      HealthCheckType: EC2
+      HealthCheckType: ELB
       HealthCheckGracePeriod: 300
       Tags:
         - Key: Name
-          Value: !Sub '${NamingPrefix}-app-instance'
+          Value: !Sub '${NamingPrefix}-web-instance'
           PropagateAtLaunch: true
 
 Outputs:
   LoadBalancerDNSName:
-    Description: DNS name of the internal load balancer
-    Value: !GetAtt AppLoadBalancer.DNSName
+    Description: DNS name of the public load balancer
+    Value: !GetAtt WebLoadBalancer.DNSName
     Export:
-      Name: !Sub '${AWS::StackName}-LoadBalancerDNSName'
+      Name: !Sub '${AWS::StackName}-WebLoadBalancerDNSName'
 
   TargetGroupArn:
     Description: ARN of the target group
-    Value: !Ref AppTargetGroup
+    Value: !Ref WebTargetGroup
     Export:
-      Name: !Sub '${AWS::StackName}-TargetGroupArn'
+      Name: !Sub '${AWS::StackName}-WebTargetGroupArn'
 
   AutoScalingGroupName:
     Description: Name of the Auto Scaling group
-    Value: !Ref AppAutoScalingGroup
+    Value: !Ref WebAutoScalingGroup
     Export:
-      Name: !Sub '${AWS::StackName}-AutoScalingGroupName'
+      Name: !Sub '${AWS::StackName}-WebAutoScalingGroupName'
 
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
-          default: "App Tier Load Balancer and Auto Scaling Configuration"
+          default: "Web Tier Load Balancer and Auto Scaling Configuration"
         Parameters:
           - NamingPrefix
     ParameterLabels:
