@@ -61,17 +61,17 @@ Resources:
           TargetGroupArn: !Ref WebTargetGroup
 
   # HTTPS Listener
-  WebHttpsListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn: !Ref WebLoadBalancer
-      Port: 443
-      Protocol: HTTPS
-      Certificates:
-        - CertificateArn: !Ref CertificateArn
-      DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref WebTargetGroup
+#  WebHttpsListener:
+#    Type: AWS::ElasticLoadBalancingV2::Listener
+#    Properties:
+#      LoadBalancerArn: !Ref WebLoadBalancer
+#      Port: 443
+#      Protocol: HTTPS
+#      Certificates:
+#        - CertificateArn: !Ref CertificateArn
+#      DefaultActions:
+#        - Type: forward
+#          TargetGroupArn: !Ref WebTargetGroup
 
   # Auto Scaling Group
   WebAutoScalingGroup:
