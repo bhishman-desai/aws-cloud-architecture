@@ -76,11 +76,6 @@ Resources:
 
           # Clone the repository
           git clone ${Repository}
-          cd waiting_coder
-
-          # Install frontend dependencies and build
-          npm install
-          npm run build
 
           # Configure NGINX
           cd /etc/nginx
