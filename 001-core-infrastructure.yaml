@@ -325,12 +325,12 @@ Resources:
   PrivateInstanceSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow TCP traffic on port 4000 from the internal load balancer
+      GroupDescription: Allow TCP traffic on port 80 from the internal load balancer
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: 4000
-          ToPort: 4000
+          FromPort: 80
+          ToPort: 80
           SourceSecurityGroupId: !Ref InternalLoadBalancerSG
 
   PrivateDatabaseSG:
