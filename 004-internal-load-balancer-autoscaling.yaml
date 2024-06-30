@@ -9,7 +9,114 @@ Parameters:
     Default: term-end-app
     Description: Prefix for naming AWS resources
 
+  RoleArn:
+    Description: Existing IAM role ARN
+    Type: String
+    Default: arn:aws:iam::114580182108:role/LabRole
+
 Resources:
+  # Lambda Function to create AMI
+  CreateAmiFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !Ref RoleArn
+      Runtime: nodejs16.x
+      Timeout: 300
+      VpcConfig:
+        SubnetIds:
+          - !ImportValue core-infrastructure-PrivateAppSubnet1Id
+        SecurityGroupIds:
+          - !ImportValue core-infrastructure-PrivateInstanceSGId
+      Environment:
+        Variables:
+          DESCRIPTION: 'App tier AMI with Node.js application and MySQL configurations'
+      Code:
+        ZipFile: |
+          const AWS = require('aws-sdk');
+          const ec2 = new AWS.EC2();
+
+          exports.handler = async function(event, context) {
+              console.log("Event: ", JSON.stringify(event, null, 2));
+              const instanceId = event.ResourceProperties.InstanceId || event.detail['instance-id'];
+              const imageName = event.ResourceProperties.ImageName || event.detail['instance-id'] || process.env.IMAGE_NAME;
+              const description = process.env.DESCRIPTION;
+
+              if (!instanceId) {
+                  const errorMessage = "Instance ID is undefined in the event.";
+                  console.error(errorMessage);
+                  return {
+                      StatusCode: 500,
+                      Body: {Error: errorMessage}
+                  };
+              }
+
+              console.log("Creating AMI for Instance ID: ", instanceId);
+              const params = {
+                  InstanceId: instanceId,
+                  Name: imageName,
+                  Description: description,
+                  NoReboot: true
+              };
+              try {
+                  const result = await ec2.createImage(params).promise();
+                  console.log("AMI created: ", result.ImageId);
+                  return {
+                      StatusCode: 200,
+                      Body: { ImageId: result.ImageId }
+                  };
+              } catch (error) {
+                  console.error("Error creating AMI: ", error);
+                  return {
+                      StatusCode: 500,
+                      Body: {Error: error.message}
+                  };
+              }
+          };
+
+  # Wrapper Lambda Function
+  WrappingLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !Ref RoleArn
+      Runtime: nodejs16.x
+      Timeout: 300
+      VpcConfig:
+        SubnetIds:
+          - !ImportValue core-infrastructure-PrivateAppSubnet1Id
+        SecurityGroupIds:
+          - !ImportValue core-infrastructure-PrivateInstanceSGId
+      Environment:
+        Variables:
+          AMI_LAMBDA_ARN: !GetAtt CreateAmiFunction.Arn
+      Code:
+        S3Bucket: term-end
+        S3Key: wrapping-lambda.zip
+
+  # Custom Resource to capture the AMI ID from the Wrapper Lambda Function
+  CreateAmiCustomResource:
+    Type: Custom::CreateAmi
+    Properties:
+      ServiceToken: !GetAtt WrappingLambdaFunction.Arn
+      ServiceTimeout: 300
+      LambdaFunctionName: !Ref CreateAmiFunction
+      InstanceId: !ImportValue app-AppTierInstanceId
+      ImageName: !Sub 'app-tier-image'
+
+  # Create a Launch Template from the AMI
+  AppLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub 'app-tier-launch-template'
+      LaunchTemplateData:
+        ImageId: !GetAtt CreateAmiCustomResource.ImageId
+        InstanceType: t3.micro
+        SecurityGroupIds:
+          - !ImportValue core-infrastructure-PrivateInstanceSGId
+        IamInstanceProfile:
+          Name: !ImportValue app-AppProfile
+
   # Target Group
   AppTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -61,8 +168,8 @@ Resources:
     Properties:
       AutoScalingGroupName: !Sub '${NamingPrefix}-asg'
       LaunchTemplate:
-        LaunchTemplateId: !ImportValue app-AppLaunchTemplateId
-        Version: !ImportValue app-AppLaunchTemplateVersion
+        LaunchTemplateId: !Ref AppLaunchTemplate
+        Version: !GetAtt AppLaunchTemplate.LatestVersionNumber
       VPCZoneIdentifier:
         - !ImportValue core-infrastructure-PrivateAppSubnet1Id
         - !ImportValue core-infrastructure-PrivateAppSubnet2Id
@@ -97,6 +204,30 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-AutoScalingGroupName'
 
+  WrappingLambdaFunctionArn:
+    Description: The ARN of the Wrapping Lambda Function
+    Value: !GetAtt WrappingLambdaFunction.Arn
+    Export:
+      Name: !Sub 'app-WrappingLambdaFunctionArn'
+
+  CreateAmiFunctionName:
+    Description: The name of the Create AMI Lambda Function
+    Value: !Ref CreateAmiFunction
+    Export:
+      Name: !Sub 'app-CreateAmiFunctionName'
+
+  AppLaunchTemplateId:
+    Description: The Launch Template ID of the app tier
+    Value: !Ref AppLaunchTemplate
+    Export:
+      Name: !Sub 'app-AppLaunchTemplateId'
+
+  AppLaunchTemplateVersion:
+    Description: The version of the Launch Template
+    Value: !GetAtt AppLaunchTemplate.LatestVersionNumber
+    Export:
+      Name: !Sub 'app-AppLaunchTemplateVersion'
+
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -104,6 +235,9 @@ Metadata:
           default: "App Tier Load Balancer and Auto Scaling Configuration"
         Parameters:
           - NamingPrefix
+          - RoleArn
     ParameterLabels:
       NamingPrefix:
         default: "Naming Prefix"
+      RoleArn:
+        default: "IAM Role ARN"

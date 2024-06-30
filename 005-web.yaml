@@ -90,29 +90,6 @@ Resources:
           # Ensure NGINX has permission to access our files
           sudo chmod -R 755 /home/ubuntu
 
-  # Custom Resource to capture the AMI ID from the Wrapper Lambda Function
-  CreateAmiCustomResource:
-    Type: Custom::CreateAmi
-    Properties:
-      ServiceToken: !ImportValue app-WrappingLambdaFunctionArn
-      ServiceTimeout: 300
-      LambdaFunctionName: !ImportValue app-CreateAmiFunctionName
-      InstanceId: !Ref WebTierInstance
-      ImageName: !Sub '${NamingPrefix}-web-tier-image'
-
-  # Create a Launch Template from the AMI
-  WebLaunchTemplate:
-    Type: AWS::EC2::LaunchTemplate
-    Properties:
-      LaunchTemplateName: !Sub '${NamingPrefix}-web-tier-launch-template'
-      LaunchTemplateData:
-        ImageId: !GetAtt CreateAmiCustomResource.ImageId
-        InstanceType: t3.micro
-        SecurityGroupIds:
-          - !ImportValue core-infrastructure-PublicInstanceSGId
-        IamInstanceProfile:
-          Name: !Ref WebProfile
-
 Outputs:
   InstanceId:
     Description: The Instance ID of the web tier
@@ -126,14 +103,8 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-WebTierPublicDnsName'
 
-  LaunchTemplateId:
-    Description: The Launch Template ID of the web tier
-    Value: !Ref WebLaunchTemplate
+  WebProfile:
+    Description: The Web Profile
+    Value: !Ref WebProfile
     Export:
-      Name: !Sub '${AWS::StackName}-WebLaunchTemplateId'
-
-  LaunchTemplateVersion:
-    Description: The version of the Launch Template
-    Value: !GetAtt WebLaunchTemplate.LatestVersionNumber
-    Export:
-      Name: !Sub '${AWS::StackName}-WebLaunchTemplateVersion'
+      Name: !Sub '${AWS::StackName}-WebProfile'

@@ -15,6 +15,29 @@ Parameters:
     Default: arn:aws:acm:region:account-id:certificate/certificate-id
 
 Resources:
+  # Custom Resource to capture the AMI ID from the Wrapper Lambda Function
+  CreateAmiCustomResource:
+    Type: Custom::CreateAmi
+    Properties:
+      ServiceToken: !ImportValue app-WrappingLambdaFunctionArn
+      ServiceTimeout: 300
+      LambdaFunctionName: !ImportValue app-CreateAmiFunctionName
+      InstanceId: !ImportValue web-WebTierInstanceId
+      ImageName: !Sub 'web-tier-image'
+
+  # Create a Launch Template from the AMI
+  WebLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub 'web-tier-launch-template'
+      LaunchTemplateData:
+        ImageId: !GetAtt CreateAmiCustomResource.ImageId
+        InstanceType: t3.micro
+        SecurityGroupIds:
+          - !ImportValue core-infrastructure-PublicInstanceSGId
+        IamInstanceProfile:
+          Name: !ImportValue web-WebProfile
+
   # Target Group
   WebTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -61,17 +84,17 @@ Resources:
           TargetGroupArn: !Ref WebTargetGroup
 
   # HTTPS Listener
-#  WebHttpsListener:
-#    Type: AWS::ElasticLoadBalancingV2::Listener
-#    Properties:
-#      LoadBalancerArn: !Ref WebLoadBalancer
-#      Port: 443
-#      Protocol: HTTPS
-#      Certificates:
-#        - CertificateArn: !Ref CertificateArn
-#      DefaultActions:
-#        - Type: forward
-#          TargetGroupArn: !Ref WebTargetGroup
+  #  WebHttpsListener:
+  #    Type: AWS::ElasticLoadBalancingV2::Listener
+  #    Properties:
+  #      LoadBalancerArn: !Ref WebLoadBalancer
+  #      Port: 443
+  #      Protocol: HTTPS
+  #      Certificates:
+  #        - CertificateArn: !Ref CertificateArn
+  #      DefaultActions:
+  #        - Type: forward
+  #          TargetGroupArn: !Ref WebTargetGroup
 
   # Auto Scaling Group
   WebAutoScalingGroup:
@@ -79,8 +102,8 @@ Resources:
     Properties:
       AutoScalingGroupName: !Sub '${NamingPrefix}-asg'
       LaunchTemplate:
-        LaunchTemplateId: !ImportValue web-WebLaunchTemplateId
-        Version: !ImportValue web-WebLaunchTemplateVersion
+        LaunchTemplateId: !Ref WebLaunchTemplate
+        Version: !GetAtt WebLaunchTemplate.LatestVersionNumber
       VPCZoneIdentifier:
         - !ImportValue core-infrastructure-PublicSubnet1Id
         - !ImportValue core-infrastructure-PublicSubnet2Id
@@ -114,6 +137,18 @@ Outputs:
     Value: !Ref WebAutoScalingGroup
     Export:
       Name: !Sub '${AWS::StackName}-WebAutoScalingGroupName'
+
+  LaunchTemplateId:
+    Description: The Launch Template ID of the web tier
+    Value: !Ref WebLaunchTemplate
+    Export:
+      Name: !Sub 'web-WebLaunchTemplateId'
+
+  LaunchTemplateVersion:
+    Description: The version of the Launch Template
+    Value: !GetAtt WebLaunchTemplate.LatestVersionNumber
+    Export:
+      Name: !Sub 'web-WebLaunchTemplateVersion'
 
 Metadata:
   AWS::CloudFormation::Interface:
