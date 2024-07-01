@@ -56,6 +56,7 @@ Resources:
       DBClusterIdentifier: !Ref DBCluster
       DBInstanceClass: db.t3.medium
       Engine: aurora-mysql
+      AvailabilityZone: us-east-1a
       Tags:
         - Key: Name
           Value: !Sub '${NamingPrefix}-db-instance-1'
