@@ -1,0 +1,33 @@
+Run Stack 001
+
+Run Stack 002
+
+Run Stack 003
+    SSH into instance and run: curl http://localhost:4000/api/get_tools/3
+    See if you get a response, if you do, move to next stack
+    Deregister any AMI (for app-instance) if they exists
+
+Run Stack 004
+    See if it's working: curl http://localhost:4000/api/get_tools/3
+    If not:
+        export DB_SECRET=$(aws secretsmanager get-secret-value --secret-id db-credentials --query 'SecretString' --output text)
+                  export DB_HOST=$(echo $DB_SECRET | jq -r '.host')
+                  export DB_USER=$(echo $DB_SECRET | jq -r '.username')
+                  export DB_PASSWORD=$(echo $DB_SECRET | jq -r '.password')
+        cd /
+        git clone -b bhishman/no-ref/changes https://github.com/bhishman-desai/waiting_coder.git
+        cd waiting_coder/backend
+        apt install npm -y
+        npm i
+        npm run dev
+        npm i -g pm2
+        pm2 start npm --name "waiting_coder" -- run dev
+
+Copy DNS of internal load balancer and paste it in .env and nginx.conf files of frontend
+build project
+and push the repo
+
+Run Stack 005
+    Deregister any AMI (for web-instance) if they exists
+
+Run Stack 006
