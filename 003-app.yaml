@@ -62,58 +62,58 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash -xe
           exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
-          
-          # Update packages
+
+          echo "Updating packages..."
           apt-get update -y
 
-          # Install MySQL server
+          echo "Installing MySQL server..."
           apt-get install mysql-server -y
 
-          # Install jq for JSON parsing
+          echo "Installing jq..."
           apt-get install jq -y
 
-          # Install AWS CLI
+          echo "Installing AWS CLI..."
           snap install aws-cli --classic
 
-          # Fetch database credentials from AWS Secrets Manager
+          echo "Fetching database credentials from AWS Secrets Manager..."
           DB_SECRET=$(aws secretsmanager get-secret-value --secret-id db-credentials --query 'SecretString' --output text)
           DB_HOST=$(echo $DB_SECRET | jq -r '.host')
           DB_USER=$(echo $DB_SECRET | jq -r '.username')
           DB_PASSWORD=$(echo $DB_SECRET | jq -r '.password')
 
-          # Create the database using MySQL CLI
+          echo "Creating the database using MySQL CLI..."
           mysql -u $DB_USER -p$DB_PASSWORD -h $DB_HOST -e "create database waiting_coder;"
 
-          # Install NVM (Node Version Manager)
+          echo "Installing NVM (Node Version Manager)..."
           curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" 
 
-          # Install a compatible version of Node.js and set it as the default
+          echo "Installing Node.js..."
           nvm install 20
           nvm use 20
 
-          # Install PM2 (Daemon Process Manager)
+          echo "Installing PM2 (Daemon Process Manager)..."
           npm install -g pm2
 
-          # Install AWS SDK for javascript (used to fetch credentials of db from secret manager)
+          echo "Installing AWS SDK for JavaScript..."
           npm install -g @aws-sdk/client-secrets-manager
 
-          # Clone the backend repository
+          echo "Cloning the backend repository..."
           git clone ${Repository}
           cd waiting_coder
           
-          # Populate database with tables and data
+          echo "Populating database with tables and data..."
           mysql -u $DB_USER -p$DB_PASSWORD -h $DB_HOST -e "use waiting_coder; source waiting_coder.sql;"
 
-          # Install backend dependencies
+          echo "Installing backend dependencies..."
           cd backend
           npm install
 
-          # Start the Node.js application using PM2
+          echo "Starting the Node.js application using PM2..."
           pm2 start npm --name "waiting_coder" -- run dev
 
-          # Ensure PM2 starts on reboot and saves the current list of processes
+          echo "Ensuring PM2 starts on reboot and saves the current list of processes..."
           pm2 startup
           pm2 save
 

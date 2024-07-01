@@ -64,30 +64,30 @@ Resources:
           sudo -s
           exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
           
-          # Update packages
+          echo "Updating packages"
           apt-get update -y
 
-          # Install NGINX
+          echo "Installing NGINX"
           apt-get install -y nginx
 
-          # Install Node.js and npm
+          echo "Installing Node.js and npm"
           curl -sL https://deb.nodesource.com/setup_20.x | bash -
           apt-get install -y nodejs
 
-          # Clone the repository
+          echo "Cloning the repository"
           git clone ${Repository}
 
-          # Configure NGINX
+          echo "Configuring NGINX"
           cd /etc/nginx
           sudo rm nginx.conf
           cp /waiting_coder/nginx.conf .
 
-          # Restart NGINX
+          echo "Restarting NGINX"
           sudo useradd -s /sbin/nologin nginx
           sudo systemctl restart nginx
           sudo systemctl status nginx
 
-          # Ensure NGINX has permission to access our files
+          echo "Ensuring NGINX has permission to access our files"
           sudo chmod -R 755 /home/ubuntu
 
 Outputs:
