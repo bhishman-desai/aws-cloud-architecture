@@ -30,13 +30,51 @@ Parameters:
     Type: String
     Default: ami-04b70fa74e45c3917
 
-  Repository:
-    Description: Repository to clone
+  InstanceType:
     Type: String
-    Default: -b bhishman/no-ref/changes https://github.com/bhishman-desai/waiting_coder.git
+    Description: EC2 instance type
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t3.large
+    Default: t3.micro
+
+  UserData:
+    Type: String
+    Description: User data script for EC2 instance
+    Default: |
+      #!/bin/bash
+      sudo -s
+      exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+      
+      echo "Updating packages"
+      apt-get update -y
+
+      echo "Installing NGINX"
+      apt-get install -y nginx
+
+      echo "Installing Node.js and npm"
+      curl -sL https://deb.nodesource.com/setup_20.x | bash -
+      apt-get install -y nodejs
+
+      echo "Cloning the repository"
+      git clone -b bhishman/no-ref/changes https://github.com/bhishman-desai/waiting_coder.git
+
+      echo "Configuring NGINX"
+      cd /etc/nginx
+      sudo rm nginx.conf
+      cp /waiting_coder/nginx.conf .
+
+      echo "Restarting NGINX"
+      sudo useradd -s /sbin/nologin nginx
+      sudo systemctl restart nginx
+      sudo systemctl status nginx
+
+      echo "Ensuring NGINX has permission to access our files"
+      sudo chmod -R 755 /home/ubuntu
 
 Resources:
-
   # Profile
   WebProfile:
     Type: AWS::IAM::InstanceProfile
@@ -48,7 +86,7 @@ Resources:
   WebTierInstance:
     Type: AWS::EC2::Instance
     Properties:
-      InstanceType: t3.micro
+      InstanceType: !Ref InstanceType
       ImageId: !Ref AMI
       KeyName: !Ref KeyName
       SubnetId: !ImportValue core-infrastructure-PublicSubnet1Id
@@ -59,36 +97,7 @@ Resources:
         - Key: Name
           Value: !Sub '${NamingPrefix}-web-tier-instance'
       UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash
-          sudo -s
-          exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
-          
-          echo "Updating packages"
-          apt-get update -y
-
-          echo "Installing NGINX"
-          apt-get install -y nginx
-
-          echo "Installing Node.js and npm"
-          curl -sL https://deb.nodesource.com/setup_20.x | bash -
-          apt-get install -y nodejs
-
-          echo "Cloning the repository"
-          git clone ${Repository}
-
-          echo "Configuring NGINX"
-          cd /etc/nginx
-          sudo rm nginx.conf
-          cp /waiting_coder/nginx.conf .
-
-          echo "Restarting NGINX"
-          sudo useradd -s /sbin/nologin nginx
-          sudo systemctl restart nginx
-          sudo systemctl status nginx
-
-          echo "Ensuring NGINX has permission to access our files"
-          sudo chmod -R 755 /home/ubuntu
+        Fn::Base64: !Ref UserData
 
 Outputs:
   InstanceId:
