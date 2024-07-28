@@ -30,13 +30,73 @@ Parameters:
     Type: String
     Default: ami-04b70fa74e45c3917
 
-  Repository:
-    Description: Repository to clone
+  UserData:
+    Description: User data script for EC2 instance
     Type: String
-    Default: -b bhishman/no-ref/changes https://github.com/bhishman-desai/waiting_coder.git
+    Default: |
+      #!/bin/bash 
+      exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+
+      echo "Updating packages..."
+      apt-get update -y
+
+      echo "Installing MySQL server..."
+      apt-get install mysql-server -y
+
+      echo "Installing jq..."
+      apt-get install jq -y
+
+      echo "Installing AWS CLI..."
+      snap install aws-cli --classic
+
+      echo "Fetching database credentials from AWS Secrets Manager..."
+      export DB_SECRET=$(aws secretsmanager get-secret-value --secret-id db-credentials --query 'SecretString' --output text)
+      export DB_HOST=$(echo $DB_SECRET | jq -r '.host')
+      export DB_USER=$(echo $DB_SECRET | jq -r '.username')
+      export DB_PASSWORD=$(echo $DB_SECRET | jq -r '.password')
+
+      echo "Creating the database using MySQL CLI..."
+      mysql -u $DB_USER -p$DB_PASSWORD -h $DB_HOST -e "create database waiting_coder;"
+
+      echo "Installing NVM (Node Version Manager)..."
+      curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
+      export NVM_DIR="$HOME/.nvm"
+      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" 
+
+      echo "Installing Node.js..."
+      nvm install 20
+      nvm use 20
+
+      echo "Installing PM2 (Daemon Process Manager)..."
+      npm install -g pm2
+
+      echo "Installing AWS SDK for JavaScript..."
+      npm install -g @aws-sdk/client-secrets-manager
+
+      echo "Cloning the backend repository..."
+      git clone -b bhishman/no-ref/changes https://github.com/bhishman-desai/waiting_coder.git
+      cd waiting_coder
+      
+      echo "Populating database with tables and data..."
+      mysql -u $DB_USER -p$DB_PASSWORD -h $DB_HOST -e "use waiting_coder; source waiting_coder.sql;"
+
+      echo "Installing backend dependencies..."
+      cd backend
+      npm install
+
+      echo "Starting the Node.js application using PM2..."
+      pm2 start npm --name "waiting_coder" -- run dev
+
+      echo "Ensuring PM2 starts on reboot and saves the current list of processes..."
+      pm2 startup
+      pm2 save
+
+      echo "export DB_SECRET='$DB_SECRET'" >> ~/.bashrc
+      echo "export DB_HOST='$DB_HOST'" >> ~/.bashrc
+      echo "export DB_USER='$DB_USER'" >> ~/.bashrc
+      echo "export DB_PASSWORD='$DB_PASSWORD'" >> ~/.bashrc
 
 Resources:
-
   # Profile
   AppProfile:
     Type: AWS::IAM::InstanceProfile
@@ -59,68 +119,7 @@ Resources:
         - Key: Name
           Value: !Sub '${NamingPrefix}-app-tier-instance'
       UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash 
-          exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
-
-          echo "Updating packages..."
-          apt-get update -y
-
-          echo "Installing MySQL server..."
-          apt-get install mysql-server -y
-
-          echo "Installing jq..."
-          apt-get install jq -y
-
-          echo "Installing AWS CLI..."
-          snap install aws-cli --classic
-
-          echo "Fetching database credentials from AWS Secrets Manager..."
-          export DB_SECRET=$(aws secretsmanager get-secret-value --secret-id db-credentials --query 'SecretString' --output text)
-          export DB_HOST=$(echo $DB_SECRET | jq -r '.host')
-          export DB_USER=$(echo $DB_SECRET | jq -r '.username')
-          export DB_PASSWORD=$(echo $DB_SECRET | jq -r '.password')
-
-          echo "Creating the database using MySQL CLI..."
-          mysql -u $DB_USER -p$DB_PASSWORD -h $DB_HOST -e "create database waiting_coder;"
-
-          echo "Installing NVM (Node Version Manager)..."
-          curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" 
-
-          echo "Installing Node.js..."
-          nvm install 20
-          nvm use 20
-
-          echo "Installing PM2 (Daemon Process Manager)..."
-          npm install -g pm2
-
-          echo "Installing AWS SDK for JavaScript..."
-          npm install -g @aws-sdk/client-secrets-manager
-
-          echo "Cloning the backend repository..."
-          git clone ${Repository}
-          cd waiting_coder
-          
-          echo "Populating database with tables and data..."
-          mysql -u $DB_USER -p$DB_PASSWORD -h $DB_HOST -e "use waiting_coder; source waiting_coder.sql;"
-
-          echo "Installing backend dependencies..."
-          cd backend
-          npm install
-
-          echo "Starting the Node.js application using PM2..."
-          pm2 start npm --name "waiting_coder" -- run dev
-
-          echo "Ensuring PM2 starts on reboot and saves the current list of processes..."
-          pm2 startup
-          pm2 save
-          
-          echo "export DB_SECRET='$DB_SECRET'" >> ~/.bashrc
-          echo "export DB_HOST='$DB_HOST'" >> ~/.bashrc
-          echo "export DB_USER='$DB_USER'" >> ~/.bashrc
-          echo "export DB_PASSWORD='$DB_PASSWORD'" >> ~/.bashrc
+        Fn::Base64: !Ref UserData
 
 Outputs:
   InstanceId:
@@ -144,7 +143,7 @@ Metadata:
           - LabRole
           - RoleArn
           - AMI
-          - Repository
+          - UserData
           - KeyName
           - NamingPrefix
     ParameterLabels:
@@ -158,5 +157,5 @@ Metadata:
         default: "Existing IAM Role ARN"
       AMI:
         default: "AMI ID"
-      Repository:
-        default: "Repository to Clone"
+      UserData:
+        default: "User Data Script for EC2 Instance"
