@@ -14,6 +14,51 @@ Parameters:
     Type: String
     Default: arn:aws:iam::114580182108:role/LabRole
 
+  S3Bucket:
+    Type: String
+    Description: S3 bucket name for the wrapping lambda function
+    Default: term-end
+
+  InstanceType:
+    Type: String
+    Description: EC2 instance type
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t3.large
+    Default: t3.micro
+
+  TargetGroupPort:
+    Type: Number
+    Description: Port for target group and health check
+    Default: 4000
+
+  TargetGroupHealthCheckPort:
+    Type: String
+    Description: Target group health check port
+    Default: traffic-port
+
+  ListenerPort:
+    Type: Number
+    Description: Port for the load balancer listener
+    Default: 80
+
+  MinSize:
+    Type: Number
+    Description: Minimum size of the auto-scaling group
+    Default: 2
+
+  MaxSize:
+    Type: Number
+    Description: Maximum size of the auto-scaling group
+    Default: 3
+
+  DesiredCapacity:
+    Type: Number
+    Description: Desired capacity of the auto-scaling group
+    Default: 2
+
 Resources:
   # Lambda Function to create AMI
   CreateAmiFunction:
@@ -91,7 +136,7 @@ Resources:
         Variables:
           AMI_LAMBDA_ARN: !GetAtt CreateAmiFunction.Arn
       Code:
-        S3Bucket: term-end
+        S3Bucket: !Ref S3Bucket
         S3Key: wrapping-lambda.zip
 
   # Custom Resource to capture the AMI ID from the Wrapper Lambda Function
@@ -111,7 +156,7 @@ Resources:
       LaunchTemplateName: !Sub 'app-tier-launch-template'
       LaunchTemplateData:
         ImageId: !GetAtt CreateAmiCustomResource.ImageId
-        InstanceType: t3.micro
+        InstanceType: !Ref InstanceType
         SecurityGroupIds:
           - !ImportValue core-infrastructure-PrivateInstanceSGId
         IamInstanceProfile:
@@ -123,12 +168,12 @@ Resources:
     Properties:
       Name: !Sub '${NamingPrefix}-target-group'
       Protocol: HTTP
-      Port: 4000
+      Port: !Ref TargetGroupPort
       VpcId: !ImportValue core-infrastructure-VPCId
       TargetType: instance
       HealthCheckIntervalSeconds: 30
       HealthCheckPath: /
-      HealthCheckPort: traffic-port
+      HealthCheckPort: !Ref TargetGroupHealthCheckPort
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 5
@@ -156,7 +201,7 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       LoadBalancerArn: !Ref AppLoadBalancer
-      Port: 80
+      Port: !Ref ListenerPort
       Protocol: HTTP
       DefaultActions:
         - Type: forward
@@ -175,9 +220,9 @@ Resources:
         - !ImportValue core-infrastructure-PrivateAppSubnet2Id
       TargetGroupARNs:
         - !Ref AppTargetGroup
-      MinSize: 2
-      MaxSize: 3
-      DesiredCapacity: 2
+      MinSize: !Ref MinSize
+      MaxSize: !Ref MaxSize
+      DesiredCapacity: !Ref DesiredCapacity
       HealthCheckType: EC2
       HealthCheckGracePeriod: 300
       Tags:
@@ -236,8 +281,30 @@ Metadata:
         Parameters:
           - NamingPrefix
           - RoleArn
+          - S3Bucket
+          - InstanceType
+          - TargetGroupPort
+          - ListenerPort
+          - MinSize
+          - MaxSize
+          - DesiredCapacity
     ParameterLabels:
       NamingPrefix:
         default: "Naming Prefix"
       RoleArn:
         default: "IAM Role ARN"
+      S3Bucket:
+        default: "S3 Bucket for Wrapping Lambda Function"
+      InstanceType:
+        default: "EC2 Instance Type"
+      TargetGroupPort:
+        default: "Target Group Port"
+      ListenerPort:
+        default: "Load Balancer Listener Port"
+      MinSize:
+        default: "Auto Scaling Group Minimum Size"
+      MaxSize:
+        default: "Auto Scaling Group Maximum Size"
+      DesiredCapacity:
+        default: "Auto Scaling Group Desired Capacity"
+
