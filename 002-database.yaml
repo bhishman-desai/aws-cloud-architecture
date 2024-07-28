@@ -19,6 +19,24 @@ Parameters:
     NoEcho: true
     Description: The database admin account password
 
+  DBInstanceClass:
+    Type: String
+    Default: db.t3.medium
+    AllowedValues:
+      - db.t3.micro
+      - db.t3.small
+      - db.t3.medium
+      - db.r5.large
+      - db.r5.xlarge
+    Description: The instance class of the DB instance
+
+  BackupRetentionPeriod:
+    Type: Number
+    Default: 7
+    MinValue: 1
+    MaxValue: 35
+    Description: The number of days to retain backups for
+
 Resources:
   # Database Subnet Group
   DBSubnetGroup:
@@ -41,7 +59,7 @@ Resources:
       DBSubnetGroupName: !Ref DBSubnetGroup
       VpcSecurityGroupIds:
         - !ImportValue core-infrastructure-PrivateDatabaseSGId
-      BackupRetentionPeriod: 7
+      BackupRetentionPeriod: !Ref BackupRetentionPeriod
       PreferredBackupWindow: 07:00-09:00
       PreferredMaintenanceWindow: Mon:00:00-Mon:03:00
       EnableIAMDatabaseAuthentication: false
@@ -54,7 +72,7 @@ Resources:
     Type: AWS::RDS::DBInstance
     Properties:
       DBClusterIdentifier: !Ref DBCluster
-      DBInstanceClass: db.t3.medium
+      DBInstanceClass: !Ref DBInstanceClass
       Engine: aurora-mysql
       AvailabilityZone: us-east-1a
       Tags:
@@ -66,7 +84,7 @@ Resources:
     Type: AWS::RDS::DBInstance
     Properties:
       DBClusterIdentifier: !Ref DBCluster
-      DBInstanceClass: db.t3.medium
+      DBInstanceClass: !Ref DBInstanceClass
       Engine: aurora-mysql
       AvailabilityZone: us-east-1b
       Tags:
@@ -126,8 +144,14 @@ Metadata:
         Parameters:
           - DBUsername
           - DBPassword
+          - DBInstanceClass
+          - BackupRetentionPeriod
     ParameterLabels:
       DBUsername:
         default: "Database Username"
       DBPassword:
         default: "Database Password"
+      DBInstanceClass:
+        default: "Database Instance Class"
+      BackupRetentionPeriod:
+        default: "Backup Retention Period"
